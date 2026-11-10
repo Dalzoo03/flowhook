@@ -36,6 +36,7 @@ Swagger UI 추가 후 `./scripts/backend.sh test assemble` 성공. 테스트 48�
 GitHub CI는 `test assemble`을 실행한다. Testcontainers가 테스트용 PostgreSQL을 생성하므로 로컬 DB나 GitHub의 DB 비밀번호 설정을 사용하지 않는다. 실행 결과는 Actions 탭에서 확인한다.
 Flyway 변경 커밋 `df31b9e`의 [CI 성공 결과](https://github.com/Dalzoo03/flowhook/actions/runs/42765182313)를 확인했다.
 이벤트 접수 커밋 `183b873`의 [GitHub CI](https://github.com/Dalzoo03/flowhook/actions/runs/42768671610)도 성공했다.
+Swagger 커밋 `761ac99`의 [GitHub CI](https://github.com/Dalzoo03/flowhook/actions/runs/42770860265)도 성공했다.
 
 ## 작업 기록
 

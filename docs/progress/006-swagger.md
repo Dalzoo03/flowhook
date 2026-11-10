@@ -20,5 +20,6 @@ UI가 없는 상태에서 테스트 실패를 확인했다. 추가 후 전체 48
 새 테스트는 UI HTML, OpenAPI 이벤트 본문·필수 필드·미정의 필드 제한·주요 응답 코드·전달 대상 경로를 검증한다.
 패키징한 JAR를 임시 포트로 실행해 Swagger HTML·JS 번들·UI 설정·OpenAPI JSON의 HTTP 200을 확인했다. 이벤트 요청 모델과 응답 코드도 확인했다. DB 변경 없이 조회만 수행했고 임시 앱은 종료했다.
 실제 브라우저에서 Execute 클릭은 사용자가 앱을 재시작한 뒤 진행한다.
+커밋 `761ac99`의 [GitHub CI 테스트·빌드](https://github.com/Dalzoo03/flowhook/actions/runs/42770860265)도 성공했다.
 
 참고: [springdoc 공식 호환 표](https://springdoc.org/#what-is-the-compatibility-matrix-of-springdoc-openapi-with-spring-boot).
