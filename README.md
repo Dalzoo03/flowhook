@@ -27,7 +27,7 @@ docker compose --profile db up -d postgres
 | 전달 대상 등록·조회 | 프로젝트 1, PostgreSQL 저장, 입력 검증·10개 제한 |
 | 테스트 | 별도 PostgreSQL 컨테이너에서 14개 통과, API·DB·동시 등록 검증 |
 | Docker / PostgreSQL | 로컬 PostgreSQL 사용, 앱+DB Compose 설정 작성 |
-| GitHub Actions | 빌드 CI 구성, 실행 결과는 Actions에서 확인 |
+| GitHub Actions | PostgreSQL 테스트·빌드 CI 구성, 실행 결과는 Actions에서 확인 |
 | Git | 현재까지의 구현을 첫 커밋으로 기록 |
 | pi | 기존 계정 설정 유지, 프로젝트 확장 작성, 실제 로딩 미확인 |
 
@@ -40,4 +40,4 @@ docker compose --profile db up -d postgres
 - [이번 작업 기록](docs/progress/001-health-api.md)
 - [기획서·PRD·로드맵](docs/README.md)
 
-현재 CI는 컴파일·패키징만 수행한다. 테스트와 배포는 다음 단계에서 추가한다.
+CI는 Testcontainers의 별도 PostgreSQL에서 테스트하고 컴파일·패키징한다. 테스트 실패 시 CI도 실패한다. 배포 자동화(CD)는 아직 구성하지 않았다.
