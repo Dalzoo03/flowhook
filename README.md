@@ -28,6 +28,7 @@ docker compose --profile db up -d postgres
 | 이벤트 접수 | POST /v1/events, 원자적 저장·대상 고정·중복 처리 |
 | 테스트 | 별도 PostgreSQL 컨테이너에서 48개 통과, API·DB·동시성·Flyway·Swagger 검증 |
 | Swagger UI | 앱 실행 후 http://localhost:8080/swagger-ui/index.html |
+| 데모 수신 서버 | Java 21 독립 실행, 9090에서 200·500·지연 응답 |
 | DB 구조 관리 | Flyway V1·V2, 기존 데이터 보존 |
 | Docker / PostgreSQL | 로컬 PostgreSQL 사용, 앱+DB Compose 설정 작성 |
 | GitHub Actions | PostgreSQL 테스트·빌드 CI 구성, 실행 결과는 Actions에서 확인 |
@@ -37,6 +38,7 @@ docker compose --profile db up -d postgres
 ## 문서
 
 - [현재 진행 현황](docs/STATUS.md)
+- [데모 수신 서버 실행·실습](demo/receiver/README.md)
 - [Flyway 설명과 사용법](docs/FLYWAY.md)
 - [설정 설명과 첫 학습](docs/GETTING_STARTED.md)
 - [백엔드 실행 방법](backend/README.md)

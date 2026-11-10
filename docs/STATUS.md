@@ -18,6 +18,8 @@
 - [x] 로컬 프로젝트 1 이벤트 접수·대상별 전달 대기 원자적 저장
 - [x] 중복·충돌 판정, 대상 URL·payload 고정, JSON·크기·한도 검증
 - [x] Swagger UI: 이벤트 예시·응답 코드·전달 대상 API 실행
+- [x] 독립 Java 21 데모 수신 서버: 루프백 9090, 정상·실패·지연 모드
+- [x] 수신 서버의 실제 HTTP 자체 검증 및 CI receiver-test 구성
 
 ## 남은 작업
 
@@ -27,7 +29,7 @@
 - [ ] 실제 전달·재시도·복구
 
 현재는 이벤트와 대상별 PENDING 전달을 한 트랜잭션에 저장한다. 동일 입력 재접수는 200, 충돌은 409다.
-다음에는 EventService.accept()의 트랜잭션·잠금과 중복 판정을 살펴본 뒤 실제 전송 worker의 작은 범위를 정한다. 인증·외부 송신 정책도 구현 전에 고려해야 한다.
+데모 수신기를 준비했으므로 다음은 실제 송신 한 번을 구현하는 단계다. localhost HTTP의 개발 전용 허용 규칙, 타임아웃, DB 트랜잭션 밖의 통신과 전송 결과 기록을 설계한다.
 
 ## 검증 근거
 
@@ -46,6 +48,7 @@ Swagger 커밋 `761ac99`의 [GitHub CI](https://github.com/Dalzoo03/flowhook/act
 - [004 CI·Flyway 도입과 학습 기록](progress/004-ci-flyway.md)
 - [005 이벤트 접수·원자적 저장·중복 처리](progress/005-event-ingestion.md)
 - [006 Swagger UI](progress/006-swagger.md)
+- [007 데모 수신 서버](progress/007-demo-receiver.md)
 
 ## 변경 이력 확인
 
