@@ -1,0 +1,42 @@
+[
+  {
+    "repository": "github/spec-kit",
+    "source_path": "templates/spec-template.md",
+    "local_path": "docs/references/spec-kit/spec-template.md",
+    "sha256": "3945437fc35cd30a5b2bf7beea680337c3516826d3efa5a6b92c4a7eca1ba28e",
+    "source_url": "https://github.com/github/spec-kit/blob/2c0a57abe1e7383a864c7d5e4dfa2457d7537734/templates/spec-template.md",
+    "tree_sha": "2c0a57abe1e7383a864c7d5e4dfa2457d7537734"
+  },
+  {
+    "repository": "github/spec-kit",
+    "source_path": "templates/checklist-template.md",
+    "local_path": "docs/references/spec-kit/checklist-template.md",
+    "sha256": "c65b7f10aa9a965ea9c7f4e879d4ab0240665473731c5e9e638c4acb3ca9afc4",
+    "source_url": "https://github.com/github/spec-kit/blob/2c0a57abe1e7383a864c7d5e4dfa2457d7537734/templates/checklist-template.md",
+    "tree_sha": "2c0a57abe1e7383a864c7d5e4dfa2457d7537734"
+  },
+  {
+    "repository": "github/spec-kit",
+    "source_path": "LICENSE",
+    "local_path": "docs/references/spec-kit/LICENSE",
+    "sha256": "2510b446bc1f0cf9702453075d20cd88631e20e5642658edb7325d9c1eb534f7",
+    "source_url": "https://github.com/github/spec-kit/blob/2c0a57abe1e7383a864c7d5e4dfa2457d7537734/LICENSE",
+    "tree_sha": "2c0a57abe1e7383a864c7d5e4dfa2457d7537734"
+  },
+  {
+    "repository": "bmad-code-org/BMAD-METHOD",
+    "source_path": "skills/bmad-prd/assets/prd-template.md",
+    "local_path": "docs/references/bmad/prd-template.md",
+    "sha256": "b6fe8fc1390b8e46961d5eb5e6f2fe6c65dca2f30623d492677672e02868f7ab",
+    "source_url": "https://github.com/bmad-code-org/BMAD-METHOD/blob/1cbcfa272fe65787c06a1fa164a901f46117cca7/skills/bmad-prd/assets/prd-template.md",
+    "tree_sha": "1cbcfa272fe65787c06a1fa164a901f46117cca7"
+  },
+  {
+    "repository": "bmad-code-org/BMAD-METHOD",
+    "source_path": "LICENSE",
+    "local_path": "docs/references/bmad/LICENSE",
+    "sha256": "0aa79baf6328b4a1e694ce10a12ffc36d7666554da128dff0e8fcda0fc536a66",
+    "source_url": "https://github.com/bmad-code-org/BMAD-METHOD/blob/1cbcfa272fe65787c06a1fa164a901f46117cca7/LICENSE",
+    "tree_sha": "1cbcfa272fe65787c06a1fa164a901f46117cca7"
+  }
+]

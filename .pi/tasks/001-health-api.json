@@ -1,0 +1,9 @@
+{
+  "id": "001-health-api",
+  "title": "Spring Boot 초기 프로젝트와 상태 확인 API",
+  "brief": "docs/tasks/001-health-api.md",
+  "allowedPaths": ["backend/**", "docs/progress/001-health-api.md"],
+  "requiredFiles": ["backend/gradlew", "backend/build.gradle", "backend/settings.gradle"],
+  "checks": ["spring-health"],
+  "maxVerificationRuns": 3
+}

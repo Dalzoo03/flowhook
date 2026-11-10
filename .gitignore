@@ -1,0 +1,15 @@
+.DS_Store
+.pi/runs/
+.env
+.env.*
+!.env.example
+**/node_modules/
+**/.gradle/
+**/build/
+**/dist/
+**/target/
+.idea/
+*.iml
+*.log
+.vscode/
+/flowhook-codex-handoff.zip
