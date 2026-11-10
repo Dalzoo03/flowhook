@@ -4,6 +4,8 @@
 
 ## 먼저 읽을 문서
 
+작업을 이어갈 때는 [현재 진행 현황](STATUS.md)과 [CI·Flyway 및 학습 기록](progress/004-ci-flyway.md)을 먼저 읽는다.
+
 처음 실행한다면 [기초 세팅 설명서](GETTING_STARTED.md)와 [작업 기록](progress/001-health-api.md)부터 읽는다.
 
 1. [프로젝트 기획서](PROJECT_PLAN.md) — 왜 만드는지, 목표·범위·일정·위험.

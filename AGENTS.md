@@ -2,7 +2,8 @@
 
 목표: Java/Spring 백엔드 학습과 2027년 1학기 인턴용 포트폴리오.
 
-- 현재는 문서, pi 개발 하네스, Java 21 / Spring Boot 기본 골격과 상태 확인 API가 있다. 웹훅·DB 연동은 아직 구현 전이다.
+- 작업 시작 시 docs/STATUS.md와 관련 docs/progress/ 기록을 읽어 현재 구현·검증 상태를 확인한다.
+- 작업을 마칠 때 docs/STATUS.md를 갱신하고 관련 docs/progress/ 기록에 변경 이유, 실제 검증 결과, 제한 사항, 다룬 학습 내용과 다음 작업을 적는다. 계획·구현·검증 완료를 구분하고 이전 작업 기록은 당시 상태로 보존한다.
 - 제품 범위는 docs/PRD.md, 동작은 docs/FUNCTIONAL_SPEC.md, 구현 순서는 docs/FLOWHOOK_PROJECT_ROADMAP.md를 따른다.
 - 사용자와 합의한 작은 작업 하나씩 구현한다. 계획 문서의 모든 기능을 한 번에 구현하지 않는다.
 - Java 21, Spring MVC와 PostgreSQL을 기본 방향으로 삼는다. 실제 프로젝트 생성 시 호환되는 버전을 확인한다.
