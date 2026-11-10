@@ -43,7 +43,7 @@ class EndpointApiTest {
 
     @BeforeEach
     void resetIsolatedTestDatabase() {
-        jdbc.sql("TRUNCATE TABLE public.endpoints RESTART IDENTITY").update();
+        jdbc.sql("TRUNCATE TABLE public.endpoints RESTART IDENTITY CASCADE").update();
     }
     private static final String PATH = "/api/projects/1/endpoints";
     private static final String VALID = """

@@ -2,7 +2,7 @@
 
 이벤트를 외부 서버에 전달하고, 실패를 재시도·조회·복구하는 백엔드를 만드는 학습 프로젝트.
 
-**현재 단계: 상태 확인 API와 PostgreSQL 기반 전달 대상 등록·조회 API.** 웹훅 전송과 인증은 이후 학습 단계다.
+**현재 단계: PostgreSQL 기반 전달 대상 등록·조회와 이벤트 접수 API.** 이벤트와 대상별 전달 대기를 원자적으로 저장한다. 실제 전송과 인증은 이후 학습 단계다.
 
 ## 처음에는 이것부터
 
@@ -25,8 +25,9 @@ docker compose --profile db up -d postgres
 | Java 21 / Spring Boot 4.1.1 / Gradle 9.7.1 | 기본 프로젝트 작성, 로컬 assemble 성공 |
 | `GET /api/health` | 코드 작성, HTTP 실행 확인 미실행 |
 | 전달 대상 등록·조회 | 프로젝트 1, PostgreSQL 저장, 입력 검증·10개 제한 |
-| 테스트 | 별도 PostgreSQL 컨테이너에서 16개 통과, API·DB·동시 등록·Flyway 검증 |
-| DB 구조 관리 | Flyway V1, 빈 DB 자동 생성·기존 로컬 DB baseline 적용 |
+| 이벤트 접수 | POST /v1/events, 원자적 저장·대상 고정·중복 처리 |
+| 테스트 | 별도 PostgreSQL 컨테이너에서 47개 통과, API·DB·동시성·Flyway 검증 |
+| DB 구조 관리 | Flyway V1·V2, 기존 데이터 보존 |
 | Docker / PostgreSQL | 로컬 PostgreSQL 사용, 앱+DB Compose 설정 작성 |
 | GitHub Actions | PostgreSQL 테스트·빌드 CI 구성, 실행 결과는 Actions에서 확인 |
 | Git | 현재까지의 구현을 첫 커밋으로 기록 |

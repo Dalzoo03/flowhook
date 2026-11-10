@@ -27,8 +27,8 @@ class FlywayMigrationTest {
     @Test
     void createsEmptyDatabaseOnceAndValidatesHistory() throws Exception {
         Flyway flyway = flyway();
-        assertEquals(1, flyway.migrate().migrationsExecuted);
-        assertEquals("1", flyway.info().current().getVersion().getVersion());
+        assertEquals(2, flyway.migrate().migrationsExecuted);
+        assertEquals("2", flyway.info().current().getVersion().getVersion());
         assertEquals("SQL", flyway.info().current().getType().name());
         assertEquals(0, flyway.migrate().migrationsExecuted);
         flyway.validate();
@@ -51,8 +51,11 @@ class FlywayMigrationTest {
         Flyway flyway = flyway();
         assertThrows(FlywayException.class, flyway::migrate);
         flyway.baseline();
-        assertEquals(0, flyway.migrate().migrationsExecuted);
-        assertEquals("BASELINE", flyway.info().current().getType().name());
+        assertEquals(1, flyway.migrate().migrationsExecuted);
+        assertEquals("2", flyway.info().current().getVersion().getVersion());
+        assertTrue(java.util.Arrays.stream(flyway.info().all())
+                .anyMatch(info -> info.getType().name().equals("BASELINE")
+                        && info.getVersion().getVersion().equals("1")));
         flyway.validate();
         try (var connection = DriverManager.getConnection(postgres.getJdbcUrl(), postgres.getUsername(), postgres.getPassword());
              var statement = connection.createStatement();

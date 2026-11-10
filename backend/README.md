@@ -1,11 +1,11 @@
 # FlowHook 백엔드
 
 Java 21, Spring Boot 4.1.1, Spring MVC, Gradle Wrapper 9.7.1을 사용한다.
-현재 API는 `GET /api/health`와 전달 대상 등록·조회이며 PostgreSQL에 저장한다.
+현재 API는 상태 확인, 전달 대상 등록·조회, 이벤트 접수이며 PostgreSQL에 저장한다.
 
 실행 전에 Docker Desktop을 켜고 루트에서 `docker compose --profile db up -d postgres`로 DB를 실행한다.
 `.env`의 비밀번호는 기존 DB 사용자 비밀번호와 일치해야 한다.
-빈 DB에서는 앱 시작 시 Flyway가 `db/migration/V1__create_endpoints.sql`을 적용한다. 수동으로 테이블을 만들 필요가 없다.
+빈 DB에서는 앱 시작 시 Flyway가 V1(전달 대상)과 V2(이벤트·전달 대기)를 적용한다. 수동으로 테이블을 만들 필요가 없다.
 수동 실습으로 이미 테이블을 만든 DB는 구조 확인 후 한 번의 baseline이 필요하다. 현재 로컬 DB에는 도입 작업에서 이미 적용했다.
 다른 기존 DB에 도입할 때는 [Flyway 안내](../docs/FLYWAY.md)를 읽고 구조부터 확인한다.
 
@@ -79,6 +79,41 @@ Testcontainers가 별도 PostgreSQL 17 컨테이너를 띄운다. 로컬 flowhoo
 각 테스트의 초기화는 테스트 컨테이너에만 적용한다. 테스트를 위해 로컬 DB를 비우지 않는다.
 Spring과 MockMvc로 기존 API 동작, DB 데이터 조회·저장, 동시 등록 20건에서 성공 10건·거절 10건을 검증한다.
 테스트 DB의 테이블도 수동 init script 대신 앱의 Flyway가 생성한다.
-Flyway 테스트는 빈 DB 생성·재실행, 기존 DB의 명시적 baseline·데이터 보존을 검증한다. 전체 16개다.
+Flyway 테스트는 빈 DB의 V1→V2 적용·재실행, 기존 DB의 명시적 baseline→V2·데이터 보존을 검증한다. 이벤트 접수 테스트를 포함해 전체 47개다.
+
+## 이벤트 접수 — 로컬 실습 단계
+
+앱을 재시작하면 V2가 적용된다. 아래 요청은 실제로 이벤트와 전달 대기를 추가한다.
+
+```bash
+curl -i http://localhost:8080/v1/events \
+  -H 'Content-Type: application/json' \
+  -d '{"eventId":"order-1001","type":"order.created","data":{"orderId":1001}}'
+```
+
+신규 요청은 202와 `id`, `eventId`, `matchedDeliveryCount`, `duplicate=false`를 반환한다.
+같은 요청을 다시 보내면 200과 같은 내부 ID·최초 대상 수, `duplicate=true`가 반환된다.
+동일 eventId의 type/data가 다르면 409 `EVENT_ID_CONFLICT`다. 저장 실패는 503이며 이벤트와 전달 작업 모두 롤백된다.
+
+- 최상위 필드는 eventId/type/data만 받는다. ID·유형은 공백만 있는 값을 제외한 1~128자 문자열, data는 객체다.
+- 본문 한도 65536바이트. 초과하면 413. 잘못된 JSON, 중복 키, 미정의 필드, 비표준 숫자는 400이다.
+- 숫자는 BigInteger/BigDecimal로 파싱한다. JSONB 비교로 객체 키 순서와 1/1.0 차이는 무시하되 배열 순서·자료형·큰 정수 값은 구분한다.
+- PostgreSQL JSONB가 저장할 수 없는 NUL·잘못된 Unicode·숫자 범위는 입력 단계에서 거절한다. 숫자·문자열·객체 키 토큰 한도는 본문 한도에 맞췄으며 Jackson의 기본 파싱 깊이 제약은 적용된다.
+- 신규 접수 당시 프로젝트의 활성 endpoint 중 event_type이 정확히 일치하는 대상에만 PENDING 전달 작업을 만든다. URL과 전체 송신 payload를 고정한다.
+- 대상이 없으면 202, matchedDeliveryCount=0으로 이벤트만 저장한다. 중복 접수로 나중에 추가된 대상에 재매칭하지 않는다.
+- 프로젝트당 이벤트 10000개. 같은 내용의 중복 조회는 한도 검사보다 먼저 처리한다.
+- 오류 응답은 code/message/traceId를 포함한다. 저장 장애 로그는 같은 traceId를 기록하며 요청 본문·SQL 내부 오류는 응답에 넣지 않는다.
+
+현재는 인증 없이 프로젝트 1로 고정된 학습 API다. 공개 서비스용 인증 계약을 완성한 상태가 아니다.
+프로젝트별 잠금으로 접수 경쟁과 한도를 제어하므로 같은 프로젝트의 접수는 직렬 처리된다. 처리량 개선은 측정 후 후속으로 다룬다.
+worker·attempt·외부 HTTP·재시도·이벤트 조회 API는 아직 없다. 저장 결과는 DBeaver에서 확인한다:
+
+```sql
+SELECT id, project_id, event_id, type, data, matched_delivery_count, received_at
+FROM public.events ORDER BY id;
+
+SELECT id, event_id, endpoint_id, target_url, payload, status
+FROM public.deliveries ORDER BY id;
+```
 
 전체 설명: [설정 설명서](../docs/GETTING_STARTED.md).
