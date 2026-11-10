@@ -9,7 +9,7 @@
 - [x] 입력 검증, 프로젝트 1 제한, 전달 대상 10개 제한
 - [x] PostgreSQL JDBC 저장·조회
 - [x] 등록 트랜잭션과 프로젝트별 DB 잠금
-- [x] 별도 PostgreSQL 컨테이너 기반 테스트 47개
+- [x] 별도 PostgreSQL 컨테이너 기반 테스트 48개
 - [x] 로컬 JAR에서 실제 DB 데이터 조회 확인
 - [x] Docker·Compose 설정 파일, GitHub PostgreSQL 테스트·빌드 CI 파일
 - [x] GitHub에서 PostgreSQL 테스트·빌드 CI 실행 성공 확인
@@ -17,6 +17,7 @@
 - [x] Flyway V2: events·deliveries 테이블
 - [x] 로컬 프로젝트 1 이벤트 접수·대상별 전달 대기 원자적 저장
 - [x] 중복·충돌 판정, 대상 URL·payload 고정, JSON·크기·한도 검증
+- [x] Swagger UI: 이벤트 예시·응답 코드·전달 대상 API 실행
 
 ## 남은 작업
 
@@ -30,7 +31,7 @@
 
 ## 검증 근거
 
-이벤트 접수 구현 후 `./scripts/backend.sh test assemble` 성공. 테스트 47개, 실패·오류·스킵 0개.
+Swagger UI 추가 후 `./scripts/backend.sh test assemble` 성공. 테스트 48개, 실패·오류·스킵 0개.
 패키징한 앱에서 기존 DB의 ID 1을 GET API로 조회했다. 상세 근거는 [DB 연결 기록](progress/003-postgresql.md)에 있다.
 GitHub CI는 `test assemble`을 실행한다. Testcontainers가 테스트용 PostgreSQL을 생성하므로 로컬 DB나 GitHub의 DB 비밀번호 설정을 사용하지 않는다. 실행 결과는 Actions 탭에서 확인한다.
 Flyway 변경 커밋 `df31b9e`의 [CI 성공 결과](https://github.com/Dalzoo03/flowhook/actions/runs/42765182313)를 확인했다.
@@ -43,6 +44,7 @@ Flyway 변경 커밋 `df31b9e`의 [CI 성공 결과](https://github.com/Dalzoo03
 - [003 PostgreSQL 연결](progress/003-postgresql.md)
 - [004 CI·Flyway 도입과 학습 기록](progress/004-ci-flyway.md)
 - [005 이벤트 접수·원자적 저장·중복 처리](progress/005-event-ingestion.md)
+- [006 Swagger UI](progress/006-swagger.md)
 
 ## 변경 이력 확인
 

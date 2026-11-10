@@ -79,9 +79,20 @@ Testcontainers가 별도 PostgreSQL 17 컨테이너를 띄운다. 로컬 flowhoo
 각 테스트의 초기화는 테스트 컨테이너에만 적용한다. 테스트를 위해 로컬 DB를 비우지 않는다.
 Spring과 MockMvc로 기존 API 동작, DB 데이터 조회·저장, 동시 등록 20건에서 성공 10건·거절 10건을 검증한다.
 테스트 DB의 테이블도 수동 init script 대신 앱의 Flyway가 생성한다.
-Flyway 테스트는 빈 DB의 V1→V2 적용·재실행, 기존 DB의 명시적 baseline→V2·데이터 보존을 검증한다. 이벤트 접수 테스트를 포함해 전체 47개다.
+Flyway 테스트는 빈 DB의 V1→V2 적용·재실행, 기존 DB의 명시적 baseline→V2·데이터 보존을 검증한다. 이벤트 접수 테스트를 포함해 전체 48개다.
 
 ## 이벤트 접수 — 로컬 실습 단계
+
+### Swagger UI에서 실행
+
+Gradle 변경 사항을 새로고침하고 앱을 재시작한 뒤 http://localhost:8080/swagger-ui/index.html 을 연다.
+`이벤트` → `POST /v1/events` → `Try it out` → 예시 JSON 확인 → `Execute`로 요청한다.
+동일 입력을 두 번 보내면 202→200, 같은 eventId에서 data만 바꾸면 409가 된다.
+`전달 대상`에서 등록·목록 조회도 가능하다. projectId에는 1을 사용한다.
+`Execute`는 실제 API 요청이므로 등록·접수 데이터를 DB에 저장한다.
+OpenAPI JSON은 `/v3/api-docs`에서 확인한다.
+
+### 터미널에서 실행
 
 앱을 재시작하면 V2가 적용된다. 아래 요청은 실제로 이벤트와 전달 대기를 추가한다.
 

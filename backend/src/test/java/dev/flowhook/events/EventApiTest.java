@@ -22,6 +22,7 @@ import org.testcontainers.postgresql.PostgreSQLContainer;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 @SpringBootTest
@@ -233,5 +234,22 @@ class EventApiTest {
         mvc.perform(post("/v1/events").contentType(MediaType.APPLICATION_JSON)
                         .content(body.replace("9".repeat(1001), "9".repeat(1000) + "8")))
                 .andExpect(status().isConflict());
+    }
+
+    @Test
+    void swaggerProvidesUiAndExecutableEventBody() throws Exception {
+        mvc.perform(get("/swagger-ui/index.html"))
+                .andExpect(status().isOk()).andExpect(content().string(org.hamcrest.Matchers.containsString("Swagger UI")));
+        mvc.perform(get("/v3/api-docs"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.paths['/v1/events'].post.requestBody.required").value(true))
+                .andExpect(jsonPath("$.paths['/v1/events'].post.requestBody.content['application/json'].schema['$ref']")
+                        .value("#/components/schemas/EventInput"))
+                .andExpect(jsonPath("$.components.schemas.EventInput.required", org.hamcrest.Matchers.containsInAnyOrder("eventId", "type", "data")))
+                .andExpect(jsonPath("$.components.schemas.EventInput.additionalProperties").value(false))
+                .andExpect(jsonPath("$.paths['/v1/events'].post.responses['202']").exists())
+                .andExpect(jsonPath("$.paths['/v1/events'].post.responses['200']").exists())
+                .andExpect(jsonPath("$.paths['/v1/events'].post.responses['409']").exists())
+                .andExpect(jsonPath("$.paths['/api/projects/{projectId}/endpoints'].post").exists());
     }
 }

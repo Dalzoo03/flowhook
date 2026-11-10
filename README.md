@@ -26,7 +26,8 @@ docker compose --profile db up -d postgres
 | `GET /api/health` | 코드 작성, HTTP 실행 확인 미실행 |
 | 전달 대상 등록·조회 | 프로젝트 1, PostgreSQL 저장, 입력 검증·10개 제한 |
 | 이벤트 접수 | POST /v1/events, 원자적 저장·대상 고정·중복 처리 |
-| 테스트 | 별도 PostgreSQL 컨테이너에서 47개 통과, API·DB·동시성·Flyway 검증 |
+| 테스트 | 별도 PostgreSQL 컨테이너에서 48개 통과, API·DB·동시성·Flyway·Swagger 검증 |
+| Swagger UI | 앱 실행 후 http://localhost:8080/swagger-ui/index.html |
 | DB 구조 관리 | Flyway V1·V2, 기존 데이터 보존 |
 | Docker / PostgreSQL | 로컬 PostgreSQL 사용, 앱+DB Compose 설정 작성 |
 | GitHub Actions | PostgreSQL 테스트·빌드 CI 구성, 실행 결과는 Actions에서 확인 |
