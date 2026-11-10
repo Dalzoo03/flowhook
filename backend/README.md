@@ -4,8 +4,10 @@ Java 21, Spring Boot 4.1.1, Spring MVC, Gradle Wrapper 9.7.1을 사용한다.
 현재 API는 `GET /api/health`와 전달 대상 등록·조회이며 PostgreSQL에 저장한다.
 
 실행 전에 Docker Desktop을 켜고 루트에서 `docker compose --profile db up -d postgres`로 DB를 실행한다.
-`.env`의 비밀번호는 기존 DB 사용자 비밀번호와 일치해야 한다. DB를 처음 준비한다면 DBeaver에서 `src/main/resources/db/schema.sql`을 실행한다.
-이미 수동 실습으로 테이블을 만들었다면 다시 실행하지 않는다. 앱이 테이블을 생성하거나 초기화하지 않는다.
+`.env`의 비밀번호는 기존 DB 사용자 비밀번호와 일치해야 한다.
+빈 DB에서는 앱 시작 시 Flyway가 `db/migration/V1__create_endpoints.sql`을 적용한다. 수동으로 테이블을 만들 필요가 없다.
+수동 실습으로 이미 테이블을 만든 DB는 구조 확인 후 한 번의 baseline이 필요하다. 현재 로컬 DB에는 도입 작업에서 이미 적용했다.
+다른 기존 DB에 도입할 때는 [Flyway 안내](../docs/FLYWAY.md)를 읽고 구조부터 확인한다.
 
 ## 실행
 
@@ -75,7 +77,8 @@ curl http://localhost:8080/api/projects/1/endpoints
 Docker Desktop이 켜진 상태에서 루트의 `./scripts/backend.sh test`를 실행한다.
 Testcontainers가 별도 PostgreSQL 17 컨테이너를 띄운다. 로컬 flowhook DB와 포트·계정·저장 공간이 분리된다.
 각 테스트의 초기화는 테스트 컨테이너에만 적용한다. 테스트를 위해 로컬 DB를 비우지 않는다.
-Spring과 MockMvc로 기존 12개 시나리오에 더해 DB 데이터 조회·저장 및 동시 등록 20건에서 성공 10건·거절 10건을 검증한다.
-Flyway 도입은 다음 단계다. 현재 `db/schema.sql`은 수동 생성 및 격리 테스트 초기화용이며 버전별 마이그레이션은 아니다.
+Spring과 MockMvc로 기존 API 동작, DB 데이터 조회·저장, 동시 등록 20건에서 성공 10건·거절 10건을 검증한다.
+테스트 DB의 테이블도 수동 init script 대신 앱의 Flyway가 생성한다.
+Flyway 테스트는 빈 DB 생성·재실행, 기존 DB의 명시적 baseline·데이터 보존을 검증한다. 전체 16개다.
 
 전체 설명: [설정 설명서](../docs/GETTING_STARTED.md).

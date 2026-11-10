@@ -29,8 +29,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @Testcontainers
 class EndpointApiTest {
     @Container
-    static final PostgreSQLContainer postgres = new PostgreSQLContainer("postgres:17-bookworm")
-            .withInitScript("db/schema.sql");
+    static final PostgreSQLContainer postgres = new PostgreSQLContainer("postgres:17-bookworm");
 
     @DynamicPropertySource
     static void databaseProperties(DynamicPropertyRegistry registry) {

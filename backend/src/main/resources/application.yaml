@@ -12,6 +12,12 @@ spring:
   sql:
     init:
       mode: never
+  flyway:
+    default-schema: public
+    baseline-on-migrate: false
+    baseline-version: "1"
+    clean-disabled: true
+    validate-migration-naming: true
 
 server:
   address: ${SERVER_ADDRESS:127.0.0.1}

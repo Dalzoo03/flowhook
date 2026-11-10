@@ -25,7 +25,8 @@ docker compose --profile db up -d postgres
 | Java 21 / Spring Boot 4.1.1 / Gradle 9.7.1 | 기본 프로젝트 작성, 로컬 assemble 성공 |
 | `GET /api/health` | 코드 작성, HTTP 실행 확인 미실행 |
 | 전달 대상 등록·조회 | 프로젝트 1, PostgreSQL 저장, 입력 검증·10개 제한 |
-| 테스트 | 별도 PostgreSQL 컨테이너에서 14개 통과, API·DB·동시 등록 검증 |
+| 테스트 | 별도 PostgreSQL 컨테이너에서 16개 통과, API·DB·동시 등록·Flyway 검증 |
+| DB 구조 관리 | Flyway V1, 빈 DB 자동 생성·기존 로컬 DB baseline 적용 |
 | Docker / PostgreSQL | 로컬 PostgreSQL 사용, 앱+DB Compose 설정 작성 |
 | GitHub Actions | PostgreSQL 테스트·빌드 CI 구성, 실행 결과는 Actions에서 확인 |
 | Git | 현재까지의 구현을 첫 커밋으로 기록 |
@@ -34,6 +35,7 @@ docker compose --profile db up -d postgres
 ## 문서
 
 - [현재 진행 현황](docs/STATUS.md)
+- [Flyway 설명과 사용법](docs/FLYWAY.md)
 - [설정 설명과 첫 학습](docs/GETTING_STARTED.md)
 - [백엔드 실행 방법](backend/README.md)
 - [pi 사용법](docs/PI_HARNESS.md)
