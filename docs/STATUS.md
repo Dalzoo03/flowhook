@@ -39,6 +39,7 @@ GitHub CI는 `test assemble`을 실행한다. Testcontainers가 테스트용 Pos
 Flyway 변경 커밋 `df31b9e`의 [CI 성공 결과](https://github.com/Dalzoo03/flowhook/actions/runs/42765182313)를 확인했다.
 이벤트 접수 커밋 `183b873`의 [GitHub CI](https://github.com/Dalzoo03/flowhook/actions/runs/42768671610)도 성공했다.
 Swagger 커밋 `761ac99`의 [GitHub CI](https://github.com/Dalzoo03/flowhook/actions/runs/42770860265)도 성공했다.
+수신 서버 커밋 `848c7b4`의 [GitHub CI](https://github.com/Dalzoo03/flowhook/actions/runs/42774000883)에서 receiver-test와 기존 백엔드 테스트·빌드가 모두 성공했다.
 
 ## 작업 기록
 
