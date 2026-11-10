@@ -30,6 +30,7 @@
 
 로컬 실행 JAR로 V2를 적용했다. 기존 endpoint 전체 데이터를 적용 전후 비교해 보존을 확인했다.
 실제 포트에서 목록 GET 200, 잘못된 이벤트 POST 400을 확인했다. 로컬 events·deliveries는 0건으로 유지했고 임시 앱은 종료했다.
+구현 커밋 `183b873`을 push한 뒤 [GitHub CI의 PostgreSQL 테스트·빌드 성공](https://github.com/Dalzoo03/flowhook/actions/runs/42768671610)을 확인했다.
 
 초기 마이그레이션 테스트는 info().all()의 첫 항목을 BASELINE으로 가정해 실패했다. 이 목록에는 적용하지 않은 V1 SQL 메타데이터도 포함될 수 있어, 버전 1 BASELINE 기록의 존재와 V2 적용 결과를 명시적으로 검증하도록 수정했다.
 

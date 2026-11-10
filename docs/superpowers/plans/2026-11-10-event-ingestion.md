@@ -22,7 +22,7 @@
 - [x] Add V2, parser, persistence, transaction and API/error handling.
 - [x] Run test suite; fix failures without weakening acceptance criteria.
 - [x] Check local V2 migration preserves endpoints; do not inject sample events into the user DB.
-- [ ] Update docs, review diff, commit/push under existing authorization and confirm GitHub CI.
+- [x] Update docs, review diff, commit/push under existing authorization and confirm GitHub CI.
 
 ## Contract and limits
 
@@ -36,4 +36,4 @@ PostgreSQL-backed tests must prove rollback of event insert when delivery insert
 
 - 47 tests passed; endpoints preserved during local V2 migration. No sample events inserted into user DB.
 - Flyway history metadata may include an ignored V1 SQL before the V1 baseline marker. Updated migration assertion to search for the explicit baseline marker instead of assuming list order; V2 execution and preservation remain asserted.
-- Independent review completed: aligned numeric/name token limits with body budget; added failing-then-passing long token test. All 47 tests pass. GitHub CI remains pending.
+- Independent review completed: aligned numeric/name token limits with body budget; added failing-then-passing long token test. All 47 tests pass. GitHub CI run 42768671610 passed for commit 183b873.
