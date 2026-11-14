@@ -45,3 +45,16 @@ worker scheduler·자동 재시도·lease 회수·서명·인증·외부 목적�
 프로세스 crash 또는 HTTP 후 DB 저장 실패는 PROCESSING과 UNKNOWN을 남길 수 있다.
 현재의 한 번 실패 시 DEAD와 시도 UNIQUE 제약은 학습 단계의 임시 계약이며 최종 V1의 5회 재시도 정책이 아니다.
 수동으로 상태를 되돌려 재전송하지 말고 다음 단계에서 복구 프로토콜을 설계한다.
+
+## 사용자 실습 확인 — 2026-11-15
+
+Swagger 전달 목록이 HTTP 200과 빈 배열을 반환해 DB를 읽기 전용으로 확인했다.
+send-demo-001은 matched_delivery_count=0으로 최초 접수되어 있고 deliveries는 0건이다.
+현재는 demo.success 활성 대상이 ID 3·4로 중복 등록되어 있다. 기존 이벤트 재접수는 대상에 재매칭하지 않으므로 새 eventId로 접수해야 전달이 생성된다.
+정확한 최초 등록 순서는 테이블 기록만으로 확인하지 못했다. 데이터 수정·삭제·전송은 수행하지 않았다.
+현재 대상 그대로 신규 이벤트를 보내면 전달 2건이 생성된다. 단일 수신 확인은 그중 한 건만 전송하며, 중복 대상 정리는 별도 작업이다.
+
+이후 사용자가 제공한 Swagger 캡처로 send-demo-002의 신규 202·대상 수 2·duplicate=false를 확인했다.
+전달 목록에 ID 1·2가 PENDING으로 나타났고, 사용자가 ID 1을 수동 전송했다.
+전송 응답은 deliveryId=1, attemptId=1, status=SUCCEEDED, outcome=SUCCESS, httpStatus=200, durationMs=94였다.
+이는 사용자 화면에 표시된 정상 전송 결과의 확인이며 수신기 터미널 로그를 별도로 관찰한 것은 아니다. ID 2의 이후 상태는 재조회하지 않았다.
