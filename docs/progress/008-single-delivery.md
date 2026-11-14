@@ -58,3 +58,12 @@ send-demo-001은 matched_delivery_count=0으로 최초 접수되어 있고 deliv
 전달 목록에 ID 1·2가 PENDING으로 나타났고, 사용자가 ID 1을 수동 전송했다.
 전송 응답은 deliveryId=1, attemptId=1, status=SUCCEEDED, outcome=SUCCESS, httpStatus=200, durationMs=94였다.
 이는 사용자 화면에 표시된 정상 전송 결과의 확인이며 수신기 터미널 로그를 별도로 관찰한 것은 아니다. ID 2의 이후 상태는 재조회하지 않았다.
+
+사용자가 정상 수신 로그도 확인했다고 알렸다. 이후 제공한 응답 JSON으로 실패·타임아웃 실습을 확인했다:
+
+- deliveryId=4, attemptId=3: DEAD / HTTP_ERROR / HTTP 500 / 9ms. 이 작업은 failure 대상이므로 지연 실험이 아니었고, 지연 대상의 ID를 다시 선택하도록 안내했다.
+- deliveryId=5, attemptId=4: DEAD / TIMEOUT / httpStatus=null / 5006ms. 약 5초 응답 제한이 동작했다.
+
+위 결과는 사용자가 제공한 실행 결과이며 이번에는 DB를 독립 재조회하거나 전송을 실행하지 않았다.
+TIMEOUT은 제한 내 응답을 받지 못했다는 뜻이다. 상대가 요청을 받지 않았거나 업무 처리를 하지 않았다는 증거는 아니므로, 후속 재시도·중복 수신 방어 설계에서 이 경계를 유지한다.
+정상·HTTP 500·타임아웃의 사용자 수동 실습은 확인 완료다. 자동 재시도·장애 회수는 여전히 미구현이다.

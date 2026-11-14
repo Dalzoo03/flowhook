@@ -23,6 +23,7 @@
 - [x] Flyway V3 전송 시도, local 프로필의 수동 1회 송신·목록 API
 - [x] 선점/HTTP/결과 저장 분리, 타임아웃·응답 제한·기본 모드 차단
 - [x] 사용자 Swagger 실습: 전달 ID 1의 SUCCESS·HTTP 200 응답 확인
+- [x] 사용자 Swagger 실습: HTTP 500과 5006ms TIMEOUT 응답 확인
 
 ## 남은 작업
 
