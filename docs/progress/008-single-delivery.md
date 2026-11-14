@@ -31,6 +31,7 @@
 로컬 PostgreSQL을 기존 볼륨으로 켜고 V3를 적용했다. endpoints/events/deliveries 전체를 전후 비교해 보존을 확인했다.
 local 프로필 실행 JAR의 목록 GET과 Swagger 전송 경로를 확인했다. 사용자 DB에는 시도나 송신을 만들지 않았고 임시 앱을 종료했다.
 별도 읽기 전용 코드 검토에서 중요한 수정 사항은 없었다.
+구현 커밋 `9afe4d5`의 [GitHub CI](https://github.com/Dalzoo03/flowhook/actions/runs/43610025906)에서 PostgreSQL 테스트·빌드와 receiver-test가 모두 성공했다.
 
 ## 학습과 다음 단계
 

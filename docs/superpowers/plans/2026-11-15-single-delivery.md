@@ -23,7 +23,7 @@
 - [x] V3, policy, sender, short transactions, local-only API.
 - [x] Tests: success500timeout, no HTTP during DB transaction, same-ID concurrency, paused endpoint, project boundary, blocked/redirect no-contact, response limit, finish failure leaves durable UNKNOWN, default mode safety.
 - [x] Local V3 preserves existing application rows; no real delivery sent without user selecting it.
-- [ ] Document limitations and run full tests/receiver checks, independent code review, commit/push and GitHub CI.
+- [x] Document limitations and run full tests/receiver checks, independent code review, commit/push and GitHub CI.
 
 ## Known boundary
 
@@ -34,4 +34,4 @@ A process crash or result-storage failure after claim leaves PROCESSING plus UNK
 - Docker initially stopped: started Docker and existing PostgreSQL without deleting volume. Observed missing send API test fail after Docker became available.
 - 62 PostgreSQL-backed tests and assemble passed. Real loopback response/time/body limits tested. Independent read-only review found no critical/important findings.
 - Local V3 applied, snapshots of endpoints/events/deliveries unchanged; no attempt/outgoing request created in user database. local-profile list and Swagger verified through packaged JAR.
-- GitHub CI pending.
+- GitHub CI run 43610025906 passed both jobs for commit 9afe4d5.
