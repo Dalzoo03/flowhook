@@ -24,7 +24,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
-@SpringBootTest
+@SpringBootTest(properties = "flowhook.delivery.local-receiver-enabled=false")
 @AutoConfigureMockMvc
 @Testcontainers
 class EndpointApiTest {
@@ -137,5 +137,13 @@ class EndpointApiTest {
             assertEquals(10, rejected);
         }
         assertEquals(10L, jdbc.sql("SELECT count(*) FROM public.endpoints").query(Long.class).single());
+    }
+
+    @Test
+    void defaultModeRejectsLocalHttpAndDoesNotExposeSendApi() throws Exception {
+        mvc.perform(post(PATH).contentType(MediaType.APPLICATION_JSON)
+                .content(VALID.replace("https://partner.example.com/webhooks", "http://127.0.0.1:9090/webhooks")))
+                .andExpect(status().isBadRequest());
+        mvc.perform(post("/api/projects/1/deliveries/1/send")).andExpect(status().isNotFound());
     }
 }

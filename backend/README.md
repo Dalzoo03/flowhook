@@ -5,7 +5,7 @@ Java 21, Spring Boot 4.1.1, Spring MVC, Gradle Wrapper 9.7.1을 사용한다.
 
 실행 전에 Docker Desktop을 켜고 루트에서 `docker compose --profile db up -d postgres`로 DB를 실행한다.
 `.env`의 비밀번호는 기존 DB 사용자 비밀번호와 일치해야 한다.
-빈 DB에서는 앱 시작 시 Flyway가 V1(전달 대상)과 V2(이벤트·전달 대기)를 적용한다. 수동으로 테이블을 만들 필요가 없다.
+빈 DB에서는 앱 시작 시 Flyway가 V1(전달 대상), V2(이벤트·전달 대기), V3(전송 시도)를 적용한다. 수동으로 테이블을 만들 필요가 없다.
 수동 실습으로 이미 테이블을 만든 DB는 구조 확인 후 한 번의 baseline이 필요하다. 현재 로컬 DB에는 도입 작업에서 이미 적용했다.
 다른 기존 DB에 도입할 때는 [Flyway 안내](../docs/FLYWAY.md)를 읽고 구조부터 확인한다.
 
@@ -58,9 +58,9 @@ Spring이 원래 `.env`를 자동으로 읽는 것은 아니다. 이번 설정�
 - `GET /api/projects/1/endpoints`: 등록 순서 목록, HTTP 200 반환.
 - 프로젝트는 실습용 1만 지원한다. 나머지 ID는 404다.
 - 이름은 앞뒤 공백 제거 후 1~80자, 이벤트 유형은 필수이며 입력한 대소문자를 유지한다.
-- URL은 호스트가 있는 HTTPS 형식만 받으며 사용자 정보·fragment·잘못된 포트를 거절한다.
+- 기본 URL은 HTTPS이며 사용자 정보·fragment·잘못된 포트를 거절한다. local 프로필에서만 숫자 루프백 수신 주소를 예외 허용한다.
 - 중복 URL도 별도 대상으로 등록한다. 10개를 초과하면 409로 거절한다.
-- 인증, 목적지 소유 확인·허용 목록, 서명키 생성, 실제 전송은 아직 구현하지 않았다. 공개 서비스용 URL 안전 정책을 완성한 상태가 아니다.
+- 인증, 외부 목적지 소유 확인·허용 목록, 서명키 생성은 아직 없다. 실제 전송은 local 프로필의 데모 수신기로만 가능하다.
 - PostgreSQL에 저장하므로 앱 재시작 후에도 데이터가 남는다. Docker의 DB 볼륨 삭제는 데이터를 지운다.
 - 등록은 트랜잭션 안에서 프로젝트별 advisory lock → 개수 확인 → INSERT 순서다. SQL을 직접 실행하는 외부 쓰기에는 이 제한이 강제되지 않는다.
 
@@ -79,7 +79,7 @@ Testcontainers가 별도 PostgreSQL 17 컨테이너를 띄운다. 로컬 flowhoo
 각 테스트의 초기화는 테스트 컨테이너에만 적용한다. 테스트를 위해 로컬 DB를 비우지 않는다.
 Spring과 MockMvc로 기존 API 동작, DB 데이터 조회·저장, 동시 등록 20건에서 성공 10건·거절 10건을 검증한다.
 테스트 DB의 테이블도 수동 init script 대신 앱의 Flyway가 생성한다.
-Flyway 테스트는 빈 DB의 V1→V2 적용·재실행, 기존 DB의 명시적 baseline→V2·데이터 보존을 검증한다. 이벤트 접수 테스트를 포함해 전체 48개다.
+Flyway 테스트는 빈 DB의 V1→V3 적용·재실행, 기존 DB의 baseline→V3·데이터 보존을 검증한다. 실제 전송 테스트를 포함해 전체 62개다.
 
 ## 이벤트 접수 — 로컬 실습 단계
 
@@ -94,7 +94,7 @@ OpenAPI JSON은 `/v3/api-docs`에서 확인한다.
 
 ### 터미널에서 실행
 
-앱을 재시작하면 V2가 적용된다. 아래 요청은 실제로 이벤트와 전달 대기를 추가한다.
+앱을 재시작하면 미적용 마이그레이션이 적용된다. 아래 요청은 실제로 이벤트와 전달 대기를 추가한다.
 
 ```bash
 curl -i http://localhost:8080/v1/events \
@@ -117,7 +117,8 @@ curl -i http://localhost:8080/v1/events \
 
 현재는 인증 없이 프로젝트 1로 고정된 학습 API다. 공개 서비스용 인증 계약을 완성한 상태가 아니다.
 프로젝트별 잠금으로 접수 경쟁과 한도를 제어하므로 같은 프로젝트의 접수는 직렬 처리된다. 처리량 개선은 측정 후 후속으로 다룬다.
-worker·attempt·외부 HTTP·재시도·이벤트 조회 API는 아직 없다. 저장 결과는 DBeaver에서 확인한다:
+local 프로필에서 수동 1회 송신·시도 기록과 전달 목록을 제공한다. [Swagger 전송 실습](../docs/SEND_ONCE.md)을 따른다.
+자동 worker·재시도·회수·이벤트 조회 API는 아직 없다. 저장 결과는 DBeaver에서도 확인한다:
 
 ```sql
 SELECT id, project_id, event_id, type, data, matched_delivery_count, received_at

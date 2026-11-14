@@ -8,13 +8,16 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
+import dev.flowhook.deliveries.LocalReceiverPolicy;
 
 @Service
 public class EndpointService {
     private final JdbcEndpointRepository repository;
+    private final LocalReceiverPolicy localReceiver;
 
-    public EndpointService(JdbcEndpointRepository repository) {
+    public EndpointService(JdbcEndpointRepository repository, LocalReceiverPolicy localReceiver) {
         this.repository = repository;
+        this.localReceiver = localReceiver;
     }
 
     @Transactional(isolation = Isolation.READ_COMMITTED, timeout = 10)
@@ -47,6 +50,7 @@ public class EndpointService {
     }
 
     private void requireHttpsUrl(String value) {
+        if (localReceiver.allows(value)) return;
         if (value == null || value.isBlank()) throw badRequest("전달 URL이 필요합니다.");
         try {
             URI url = new URI(value);

@@ -1,7 +1,7 @@
 # Flyway: DB 구조 변경 이력 관리
 
 Git이 SQL 파일의 변경 이력을 관리한다면, Flyway는 각 DB에 어떤 버전의 SQL이 적용됐는지 기록한다.
-현재 V1은 전달 대상, V2는 이벤트와 전달 대기 테이블을 생성한다. 파일은 `backend/src/main/resources/db/migration/`에 있다.
+현재 V1은 전달 대상, V2는 이벤트와 전달 대기, V3는 전송 시도 테이블을 생성한다. 파일은 `backend/src/main/resources/db/migration/`에 있다.
 
 ## 앱 시작 시 하는 일
 
@@ -11,7 +11,7 @@ Git이 SQL 파일의 변경 이력을 관리한다면, Flyway는 각 DB에 어�
 4. 아직 적용하지 않은 버전의 SQL을 순서대로 실행하고 결과를 기록한다.
 
 `V1__create_endpoints.sql`에서 V1은 버전 1, 밑줄 두 개 뒤는 설명이다.
-다음 구조 변경은 적용한 V1·V2를 고치는 대신 V3 파일로 추가한다. 예를 들어 실제로 생성 시각이 필요해질 때 `V3__add_endpoint_created_at.sql`을 만든다. 이 V3는 설명용이며 아직 추가하지 않았다.
+다음 구조 변경은 적용한 V1·V2·V3를 고치는 대신 V4 파일로 추가한다. 예를 들어 실제로 생성 시각이 필요해질 때 `V4__add_endpoint_created_at.sql`을 만든다. 이 V4는 설명용이며 아직 추가하지 않았다.
 
 적용한 SQL 파일은 바꾸지 않는다. 실제 SQL 마이그레이션에는 checksum이 기록되어 이후 수정되면 검증이 실패한다.
 오류를 감추려고 history를 수동 수정하거나 무작정 repair하지 말고, 변경 원인을 먼저 확인한다.
@@ -43,8 +43,8 @@ FROM public.flyway_schema_history
 ORDER BY installed_rank;
 ```
 
-로컬 DB에는 version=1, type=BASELINE과 version=2, type=SQL이 기록된다. baseline 행에 SQL checksum이 없는 것도 정상이다.
-테스트용 빈 DB에는 V1·V2가 실제 실행되므로 둘 다 type=SQL로 기록된다.
+로컬 DB에는 version=1, type=BASELINE과 version=2·3, type=SQL이 기록된다. baseline 행에 SQL checksum이 없는 것도 정상이다.
+테스트용 빈 DB에는 V1·V2·V3가 실제 실행되므로 모두 type=SQL로 기록된다.
 
 ## 코드 설정
 
@@ -53,7 +53,7 @@ ORDER BY installed_rank;
 - `spring.sql.init.mode=never`: 일반 schema.sql 자동 실행과 중복하지 않는다.
 - `default-schema=public`: 이력과 현재 테이블을 public에 관리한다.
 - `clean-disabled=true`: Flyway clean을 통한 스키마 삭제를 막는다. Docker 볼륨 삭제까지 막는 설정은 아니다.
-- 테스트도 같은 V1·V2를 사용한다. 테스트 컨테이너의 별도 init script는 제거했다.
+- 테스트도 같은 V1·V2·V3를 사용한다. 테스트 컨테이너의 별도 init script는 제거했다.
 
 ## 학습 확인
 

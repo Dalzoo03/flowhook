@@ -2,7 +2,7 @@
 
 이벤트를 외부 서버에 전달하고, 실패를 재시도·조회·복구하는 백엔드를 만드는 학습 프로젝트.
 
-**현재 단계: PostgreSQL 기반 전달 대상 등록·조회와 이벤트 접수 API.** 이벤트와 대상별 전달 대기를 원자적으로 저장한다. 실제 전송과 인증은 이후 학습 단계다.
+**현재 단계: 이벤트 접수와 로컬 수신기로 실제 전송 한 번.** 이벤트·전달 대기·시도 결과를 PostgreSQL에 저장한다. 자동 재시도·복구와 인증은 이후 학습 단계다.
 
 ## 처음에는 이것부터
 
@@ -26,10 +26,11 @@ docker compose --profile db up -d postgres
 | `GET /api/health` | 코드 작성, HTTP 실행 확인 미실행 |
 | 전달 대상 등록·조회 | 프로젝트 1, PostgreSQL 저장, 입력 검증·10개 제한 |
 | 이벤트 접수 | POST /v1/events, 원자적 저장·대상 고정·중복 처리 |
-| 테스트 | 별도 PostgreSQL 컨테이너에서 48개 통과, API·DB·동시성·Flyway·Swagger 검증 |
+| 테스트 | 별도 PostgreSQL 컨테이너에서 62개 통과, API·실제 HTTP·DB·동시성 검증 |
 | Swagger UI | 앱 실행 후 http://localhost:8080/swagger-ui/index.html |
 | 데모 수신 서버 | Java 21 독립 실행, 9090에서 200·500·지연 응답 |
-| DB 구조 관리 | Flyway V1·V2, 기존 데이터 보존 |
+| DB 구조 관리 | Flyway V1·V2·V3, 기존 데이터 보존 |
+| 실제 송신 | local 프로필에서 선택 ID를 로컬 수신기로 한 번 전송 |
 | Docker / PostgreSQL | 로컬 PostgreSQL 사용, 앱+DB Compose 설정 작성 |
 | GitHub Actions | PostgreSQL 테스트·빌드 CI 구성, 실행 결과는 Actions에서 확인 |
 | Git | 현재까지의 구현을 첫 커밋으로 기록 |
@@ -38,6 +39,7 @@ docker compose --profile db up -d postgres
 ## 문서
 
 - [현재 진행 현황](docs/STATUS.md)
+- [Swagger로 전송 한 번 실습](docs/SEND_ONCE.md)
 - [데모 수신 서버 실행·실습](demo/receiver/README.md)
 - [Flyway 설명과 사용법](docs/FLYWAY.md)
 - [설정 설명과 첫 학습](docs/GETTING_STARTED.md)
