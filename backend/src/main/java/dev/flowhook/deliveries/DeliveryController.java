@@ -18,7 +18,7 @@ import org.springframework.web.server.ResponseStatusException;
 @RestController
 @RequestMapping("/api/projects/{projectId}/deliveries")
 @ConditionalOnProperty(name = "flowhook.delivery.local-receiver-enabled", havingValue = "true")
-@Tag(name = "전송 실습(로컬)", description = "local 프로필의 데모 수신기로 한 번 전송합니다. 자동 재시도는 없습니다.")
+@Tag(name = "전송 실습(로컬)", description = "local worker가 자동 전송합니다. 수동 실행 API도 유지하며 worker와 경쟁하면 409가 반환될 수 있습니다.")
 public class DeliveryController {
     private final DeliveryService service;
     private final DeliveryTransactions transactions;
@@ -36,7 +36,7 @@ public class DeliveryController {
     }
 
     @PostMapping("/{deliveryId}/send")
-    @Operation(summary = "선택한 PENDING 작업을 한 번 전송", description = "HTTP 200은 시도 처리 완료입니다. 응답의 status·outcome·httpStatus로 전송 결과를 확인하세요. 실패는 이번 실습에서 DEAD로 기록합니다.")
+    @Operation(summary = "PENDING 또는 예약 시간이 지난 RETRY_WAIT 작업 1회 실행", description = "HTTP 200은 시도 처리 완료입니다. 재시도 가능한 실패는 RETRY_WAIT와 nextAttemptAt으로 예약하며 최초 포함 최대 5회입니다. local 프로필의 worker가 예약 후 자동 실행합니다. 수동 실습은 worker-enabled=false로 끄고 같은 전달 ID를 실행하세요. 시간 전 실행·종료 상태는 409입니다.")
     public DeliveryTransactions.DeliveryResult send(@Parameter(example = "1") @PathVariable long projectId,
                                                    @Parameter(example = "1") @PathVariable long deliveryId) {
         return service.sendOnce(projectId, deliveryId);

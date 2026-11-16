@@ -1,7 +1,7 @@
 # 데모 웹훅 수신 서버
 
 FlowHook의 전송·실패·타임아웃을 실험할 로컬 상대 서버다. Java 21의 기본 HTTP 서버만 사용하며 DB와 외부 의존성이 없다.
-FlowHook local 프로필의 수동 1회 송신과 연결할 수 있다. [Swagger 전송 실습](../../docs/SEND_ONCE.md)을 따른다. 자동 worker·재시도는 아직 없다.
+FlowHook local 프로필의 자동 worker가 전송한다. [Swagger 자동 전송 실습](../../docs/SEND_ONCE.md)을 따른다. 먼저 수신기를 켜고 FlowHook을 재시작한다. 실패 시 예약 시각 이후 자동 재전송한다.
 
 ## 실행
 

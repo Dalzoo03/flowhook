@@ -5,7 +5,7 @@ Java 21, Spring Boot 4.1.1, Spring MVC, Gradle Wrapper 9.7.1을 사용한다.
 
 실행 전에 Docker Desktop을 켜고 루트에서 `docker compose --profile db up -d postgres`로 DB를 실행한다.
 `.env`의 비밀번호는 기존 DB 사용자 비밀번호와 일치해야 한다.
-빈 DB에서는 앱 시작 시 Flyway가 V1(전달 대상), V2(이벤트·전달 대기), V3(전송 시도)를 적용한다. 수동으로 테이블을 만들 필요가 없다.
+빈 DB에서는 앱 시작 시 Flyway가 V1(전달 대상), V2(이벤트·전달 대기), V3(전송 시도), V4(시도 번호·횟수·재시도 예약), V5(처리 기한·소유권·복구 이유)를 적용한다. 수동으로 테이블을 만들 필요가 없다.
 수동 실습으로 이미 테이블을 만든 DB는 구조 확인 후 한 번의 baseline이 필요하다. 현재 로컬 DB에는 도입 작업에서 이미 적용했다.
 다른 기존 DB에 도입할 때는 [Flyway 안내](../docs/FLYWAY.md)를 읽고 구조부터 확인한다.
 
@@ -79,7 +79,7 @@ Testcontainers가 별도 PostgreSQL 17 컨테이너를 띄운다. 로컬 flowhoo
 각 테스트의 초기화는 테스트 컨테이너에만 적용한다. 테스트를 위해 로컬 DB를 비우지 않는다.
 Spring과 MockMvc로 기존 API 동작, DB 데이터 조회·저장, 동시 등록 20건에서 성공 10건·거절 10건을 검증한다.
 테스트 DB의 테이블도 수동 init script 대신 앱의 Flyway가 생성한다.
-Flyway 테스트는 빈 DB의 V1→V3 적용·재실행, 기존 DB의 baseline→V3·데이터 보존을 검증한다. 실제 전송 테스트를 포함해 전체 62개다.
+Flyway 테스트는 빈 DB의 V1→V5 적용·재실행, 기존 DB의 baseline→V5 및 V3→V5·V4→V5 데이터 보존을 검증한다. 실제 전송 테스트를 포함해 전체 103개다.
 
 ## 이벤트 접수 — 로컬 실습 단계
 
@@ -117,15 +117,49 @@ curl -i http://localhost:8080/v1/events \
 
 현재는 인증 없이 프로젝트 1로 고정된 학습 API다. 공개 서비스용 인증 계약을 완성한 상태가 아니다.
 프로젝트별 잠금으로 접수 경쟁과 한도를 제어하므로 같은 프로젝트의 접수는 직렬 처리된다. 처리량 개선은 측정 후 후속으로 다룬다.
-local 프로필에서 수동 1회 송신·시도 기록과 전달 목록을 제공한다. [Swagger 전송 실습](../docs/SEND_ONCE.md)을 따른다.
-자동 worker·재시도·회수·이벤트 조회 API는 아직 없다. 저장 결과는 DBeaver에서도 확인한다:
+local 프로필에서 자동 worker·시도 기록·재시도 예약과 전달 목록을 제공한다. [Swagger 전송 실습](../docs/SEND_ONCE.md)을 따른다.
+재시도 가능 실패는 RETRY_WAIT로 예약한다. 예약 시각 이후 worker가 자동 실행하며 최초 포함 최대 5회다. worker는 한 배치 최대10건 순차 처리 후 1초 쉬고 다시 조회한다. 30초 lease가 만료된 PROCESSING을 UNKNOWN으로 닫고 남은 횟수에 따라 재예약/DEAD 처리한다. 이벤트 조회 API는 아직 없다. 저장 결과는 DBeaver에서도 확인한다:
 
 ```sql
 SELECT id, project_id, event_id, type, data, matched_delivery_count, received_at
 FROM public.events ORDER BY id;
 
-SELECT id, event_id, endpoint_id, target_url, payload, status
+SELECT id, event_id, endpoint_id, target_url, payload, status, attempt_count, next_attempt_at
 FROM public.deliveries ORDER BY id;
 ```
 
 전체 설명: [설정 설명서](../docs/GETTING_STARTED.md).
+
+## JPA와 이벤트 요청 DTO
+
+전달 대상·이벤트의 일반 저장/조회는 `EndpointEntity`, `EventEntity`와 Spring Data `JpaRepository`를 사용한다.
+JSONB의 정확한 동등 비교·전달 일괄 생성은 EventRepository의 native query다.
+조건부 선점·시도 결과 저장·최신 결과 조회는 DeliveryTransactions의 JPA/Hibernate native SQL로 유지한다.
+`spring.jpa.hibernate.ddl-auto=validate`로 기존 Flyway 스키마를 확인하며 JPA가 테이블을 생성·변경하지 않는다. `open-in-view=false`다.
+외부 HTTP는 이전처럼 트랜잭션 밖에서 실행한다.
+
+EventController는 `@Valid @RequestBody EventRequest`로 요청 JSON을 DTO로 받는다.
+EventRequest는 eventId/type/data 필드와 Bean Validation 어노테이션만 가진다.
+64KiB 크기 제한은 EventBodyLimit, 중복 키·정확한 숫자·엄격한 JSON 설정은 JsonConfiguration,
+JSONB에 저장할 수 없는 값 검사는 EventJsonValidation으로 분리했다. JsonConfiguration은 앱 전체 JSON 입력에 적용된다.
+기존 성공·오류 응답 형식과 기존 테스트 계약은 유지한다.
+학습·검증 기록: [JPA 전환](../docs/progress/010-jpa-request.md).
+
+## 로컬 자동 worker
+
+`application-local.yaml`은 `flowhook.delivery.worker-enabled=true`다. local 프로필과 local-receiver-enabled=true가 함께 있어야 동작한다.
+worker가 프로젝트1/활성 대상/PENDING 또는 due RETRY_WAIT/잔여 횟수/정규 로컬 URL을 먼저 필터링한 뒤 최대10 ID를 조회한다.
+후보 조회가 끝난 뒤 `DeliveryService.sendOnce`를 한 건씩 호출하므로 HTTP 전송은 DB 트랜잭션 밖이다.
+중복 선점 경쟁의404/409는 건너뛰고, 개별 처리나 DB 조회 실패는 경고를 남기고 다음 작업/tick으로 진행한다.
+로그에는 payload·URL·DB 예외 상세를 넣지 않는다. 저장 실패로 남은 PROCESSING은 lease 만료 후 별도 scheduler 작업이 회수한다.
+수동 실습은 실행 인자 `--flowhook.delivery.worker-enabled=false`로 자동 worker만 끈다. 기본 프로필에서는 worker가 없다.
+local 재시작 시 기존 데모 목적지의 실행 가능한 작업도 처리한다. [자동 전송 실습](../docs/SEND_ONCE.md), [구현 기록](../docs/progress/011-local-worker.md).
+
+## 처리 기한과 중단 복구
+
+선점 직전에 DB 시각 기준30초 lease와 UUID를 저장한다. 결과 저장은 현재 UUID/회차/유효 기한을 검사하며 이전 worker의 늦은 응답은409로 거절한다.
+별도 복구 tick이 만료 PROCESSING을 UNKNOWN/LEASE_EXPIRED로 닫고 같은 시도 예산으로 재예약하거나5회에서 DEAD로 끝낸다.
+스케줄러 풀은2개이며 정상 송신은 여전히 배치 내 순차 실행이다. 중지 수신처는 상태 정리만 하고 전송을 보류한다.
+목록에 leaseExpiresAt/recoveryReason을 제공한다. V5 적용 전 구버전 앱을 모두 중지하며, 상태/이력/횟수는 유지한다.
+테스트103개 외에도 임시 DB와 패키징 앱에서 실제 SIGKILL→재시작→30초 만료→두 번째 시도 성공을 확인했다.
+중복 HTTP는 여전히 가능하다. heartbeat/수신자 멱등 처리/구버전 혼합 운영은 지원하지 않는다. [복구 기록](../docs/progress/012-lease-recovery.md).

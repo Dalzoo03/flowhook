@@ -1,6 +1,6 @@
 # 자고 일어나서 보는 FlowHook 기초 세팅 안내
 
-최신 상태: 전달 대상 등록·조회를 PostgreSQL JDBC 저장소로 교체했다. 사용법은 [백엔드 README](../backend/README.md), 변경 내역은 [DB 연결 기록](progress/003-postgresql.md)을 따른다. 아래 기초 세팅 당시의 DB 미연결·메모리 저장·테스트 미작성 설명은 과거 상태다.
+최신 상태: PostgreSQL 저장 계층을 Spring Data JPA로 전환했다. 사용법은 [백엔드 README](../backend/README.md), 변경 내역은 [JPA 전환 기록](progress/010-jpa-request.md)을 따른다. 아래 기초 세팅 당시의 DB 미연결·메모리 저장·테스트 미작성 설명은 과거 상태다.
 
 ## 1. 이번에 어디까지 만들었나
 

@@ -3,6 +3,7 @@ package dev.flowhook.deliveries;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.Set;
+import java.util.List;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
@@ -16,6 +17,12 @@ public class LocalReceiverPolicy {
         if (port < 1 || port > 65535) throw new IllegalArgumentException("Invalid local receiver port");
         this.enabled = enabled;
         this.port = port;
+    }
+
+    public List<String> workerTargets() {
+        if (!enabled) return List.of();
+        String base = "http://127.0.0.1:" + port + "/webhooks";
+        return List.of(base, base + "?mode=success", base + "?mode=failure", base + "?mode=delay");
     }
 
     public boolean allows(String value) {

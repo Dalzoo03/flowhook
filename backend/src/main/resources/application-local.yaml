@@ -1,3 +1,4 @@
 flowhook:
   delivery:
     local-receiver-enabled: true
+    worker-enabled: true

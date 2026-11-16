@@ -12,10 +12,10 @@ import dev.flowhook.deliveries.LocalReceiverPolicy;
 
 @Service
 public class EndpointService {
-    private final JdbcEndpointRepository repository;
+    private final EndpointRepository repository;
     private final LocalReceiverPolicy localReceiver;
 
-    public EndpointService(JdbcEndpointRepository repository, LocalReceiverPolicy localReceiver) {
+    public EndpointService(EndpointRepository repository, LocalReceiverPolicy localReceiver) {
         this.repository = repository;
         this.localReceiver = localReceiver;
     }
@@ -34,12 +34,12 @@ public class EndpointService {
         if (repository.countByProjectId(projectId) >= 10) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "프로젝트당 전달 대상은 최대 10개입니다.");
         }
-        return repository.save(projectId, name.strip(), url, eventType);
+        return repository.save(new EndpointEntity(projectId, name.strip(), url, eventType)).toResponse();
     }
 
     public List<Endpoint> findAll(long projectId) {
         requireProject(projectId);
-        return repository.findAllByProjectId(projectId);
+        return repository.findAllByProjectIdOrderById(projectId).stream().map(EndpointEntity::toResponse).toList();
     }
 
     private void requireProject(long projectId) {

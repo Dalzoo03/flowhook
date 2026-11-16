@@ -64,6 +64,7 @@ class DeliveryApiTest {
     @Autowired MockMvc mvc;
     @Autowired JdbcClient jdbc;
     @Autowired DeliveryService service;
+    @Autowired DeliveryTransactions transactions;
     @Autowired org.springframework.transaction.PlatformTransactionManager transactionManager;
 
     @BeforeEach void reset() {
@@ -122,10 +123,11 @@ class DeliveryApiTest {
         mvc.perform(post(send(1))).andExpect(status().isOk()).andExpect(jsonPath("$.status").value("SUCCEEDED"));
     }
 
-    @Test void recordsHttpFailureWithoutAutomaticRetry() throws Exception {
+    @Test void reservesHttpFailureWithoutAutomaticWorker() throws Exception {
         handler.set(exchange -> reply(exchange, 500, "failure".getBytes(StandardCharsets.UTF_8)));
         mvc.perform(post(send(delivery(target() + "?mode=failure")))).andExpect(status().isOk())
-                .andExpect(jsonPath("$.status").value("DEAD")).andExpect(jsonPath("$.httpStatus").value(500))
+                .andExpect(jsonPath("$.status").value("RETRY_WAIT")).andExpect(jsonPath("$.httpStatus").value(500))
+                .andExpect(jsonPath("$.attemptCount").value(1)).andExpect(jsonPath("$.nextAttemptAt").isNotEmpty())
                 .andExpect(jsonPath("$.outcome").value("HTTP_ERROR"));
         assertEquals(1, hits.get());
     }
@@ -174,7 +176,7 @@ class DeliveryApiTest {
         });
         long start = System.nanoTime();
         mvc.perform(post(send(delivery(target())))).andExpect(status().isOk())
-                .andExpect(jsonPath("$.outcome").value("TIMEOUT")).andExpect(jsonPath("$.status").value("DEAD"));
+                .andExpect(jsonPath("$.outcome").value("TIMEOUT")).andExpect(jsonPath("$.status").value("RETRY_WAIT"));
         assertTrue(Duration.ofNanos(System.nanoTime() - start).toMillis() < 8000);
     }
 
@@ -231,10 +233,231 @@ class DeliveryApiTest {
         assertEquals(0L, jdbc.sql("SELECT count(*) FROM public.delivery_attempts").query(Long.class).single());
     }
 
-    @Test void recordsAbruptConnectionFailureWithoutRetry() throws Exception {
+    @Test void reservesAbruptConnectionFailure() throws Exception {
         handler.set(HttpExchange::close);
         mvc.perform(post(send(delivery(target())))).andExpect(status().isOk())
-                .andExpect(jsonPath("$.outcome").value("NETWORK_ERROR")).andExpect(jsonPath("$.status").value("DEAD"));
+                .andExpect(jsonPath("$.outcome").value("NETWORK_ERROR")).andExpect(jsonPath("$.status").value("RETRY_WAIT"));
         assertEquals(1, hits.get());
     }
+
+    @Test void reservesRetryRejectsEarlySendAndPreservesEveryAttempt() throws Exception {
+        long id = delivery(target());
+        handler.set(exchange -> reply(exchange, hits.get() < 3 ? 500 : 200, new byte[]{1}));
+        mvc.perform(post(send(id))).andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("RETRY_WAIT"))
+                .andExpect(jsonPath("$.attemptCount").value(1))
+                .andExpect(jsonPath("$.nextAttemptAt").isNotEmpty());
+        mvc.perform(post(send(id))).andExpect(status().isConflict());
+        assertEquals(1, hits.get());
+        for (int number = 2; number <= 3; number++) {
+            jdbc.sql("UPDATE public.deliveries SET next_attempt_at=clock_timestamp()-interval '1 millisecond' WHERE id=:id").param("id", id).update();
+            mvc.perform(post(send(id))).andExpect(status().isOk())
+                    .andExpect(jsonPath("$.status").value(number == 3 ? "SUCCEEDED" : "RETRY_WAIT"))
+                    .andExpect(jsonPath("$.attemptCount").value(number));
+        }
+        assertEquals(3L, jdbc.sql("SELECT count(*) FROM public.delivery_attempts").query(Long.class).single());
+        mvc.perform(get("/api/projects/1/deliveries")).andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(1)).andExpect(jsonPath("$[0].outcome").value("SUCCESS"));
+        assertTrue(jdbc.sql("SELECT next_attempt_at IS NULL FROM public.deliveries").query(Boolean.class).single());
+    }
+
+    @Test void fiveFailuresExhaustBudgetAndNeverCreateSixthAttempt() throws Exception {
+        long id = delivery(target());
+        handler.set(exchange -> reply(exchange, 500, new byte[]{1}));
+        for (int number = 1; number <= 5; number++) {
+            if (number > 1) due(id);
+            mvc.perform(post(send(id))).andExpect(status().isOk())
+                    .andExpect(jsonPath("$.attemptCount").value(number))
+                    .andExpect(jsonPath("$.status").value(number == 5 ? "DEAD" : "RETRY_WAIT"));
+        }
+        mvc.perform(post(send(id))).andExpect(status().isConflict());
+        assertEquals(5, hits.get());
+        assertEquals(5L, jdbc.sql("SELECT count(*) FROM public.delivery_attempts").query(Long.class).single());
+        assertEquals(5L, jdbc.sql("SELECT count(DISTINCT attempt_no) FROM public.delivery_attempts").query(Long.class).single());
+        assertTrue(jdbc.sql("SELECT next_attempt_at IS NULL FROM public.deliveries").query(Boolean.class).single());
+    }
+
+    private void due(long id) {
+        jdbc.sql("UPDATE public.deliveries SET next_attempt_at=clock_timestamp()-interval '1 millisecond' WHERE id=:id").param("id", id).update();
+    }
+
+    @Test void dueRetryIsClaimedOnceWhenRequestsRace() throws Exception {
+        long id = delivery(target());
+        handler.set(exchange -> reply(exchange, 500, new byte[]{1}));
+        mvc.perform(post(send(id))).andExpect(jsonPath("$.status").value("RETRY_WAIT"));
+        due(id);
+        var entered = new CountDownLatch(1);
+        var release = new CountDownLatch(1);
+        handler.set(exchange -> {
+            entered.countDown();
+            try { release.await(3, TimeUnit.SECONDS); } catch (InterruptedException exception) { Thread.currentThread().interrupt(); }
+            reply(exchange, 200, new byte[]{1});
+        });
+        try (var executor = Executors.newSingleThreadExecutor()) {
+            var first = executor.submit(() -> mvc.perform(post(send(id))).andReturn().getResponse().getStatus());
+            try {
+                assertTrue(entered.await(3, TimeUnit.SECONDS));
+                mvc.perform(post(send(id))).andExpect(status().isConflict());
+            } finally { release.countDown(); }
+            assertEquals(200, first.get());
+        }
+        assertEquals(2, hits.get());
+        assertEquals(2L, jdbc.sql("SELECT count(*) FROM public.delivery_attempts").query(Long.class).single());
+    }
+
+    @Test void pausedRetryKeepsScheduleAndAttemptCount() throws Exception {
+        long id = delivery(target());
+        handler.set(exchange -> reply(exchange, 500, new byte[]{1}));
+        mvc.perform(post(send(id))).andExpect(status().isOk());
+        due(id);
+        jdbc.sql("UPDATE public.endpoints SET active=false").update();
+        mvc.perform(post(send(id))).andExpect(status().isConflict());
+        assertEquals(1, hits.get());
+        assertEquals(1, jdbc.sql("SELECT attempt_count FROM public.deliveries").query(Integer.class).single());
+        assertFalse(jdbc.sql("SELECT next_attempt_at IS NULL FROM public.deliveries").query(Boolean.class).single());
+    }
+
+    @Test void retryAfterHeaderIsReflectedInDatabaseSchedule() throws Exception {
+        handler.set(exchange -> {
+            exchange.getResponseHeaders().set("Retry-After", "120");
+            reply(exchange, 429, new byte[]{1});
+        });
+        mvc.perform(post(send(delivery(target())))).andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("RETRY_WAIT"));
+        double seconds = jdbc.sql("SELECT extract(epoch FROM (d.next_attempt_at-a.finished_at))::double precision FROM public.deliveries d JOIN public.delivery_attempts a ON a.delivery_id=d.id")
+                .query(Double.class).single();
+        assertTrue(seconds >= 120 && seconds < 122);
+    }
+
+    @Test void earlierAttemptCannotOverwriteLaterInFlightAttempt() {
+        long id = delivery(target());
+        var first = transactions.claim(1, id);
+        transactions.finish(first, new LocalWebhookSender.SendResult("HTTP_ERROR", 500, 1, new byte[0], false, null));
+        due(id);
+        var second = transactions.claim(1, id);
+        assertThrows(org.springframework.web.server.ResponseStatusException.class,
+                () -> transactions.finish(first, new LocalWebhookSender.SendResult("SUCCESS", 200, 1, new byte[0], false, null)));
+        assertEquals("PROCESSING", jdbc.sql("SELECT status FROM public.deliveries").query(String.class).single());
+        assertEquals("UNKNOWN", jdbc.sql("SELECT outcome FROM public.delivery_attempts WHERE attempt_no=2").query(String.class).single());
+        assertEquals(2, jdbc.sql("SELECT attempt_count FROM public.deliveries").query(Integer.class).single());
+        transactions.finish(second, new LocalWebhookSender.SendResult("SUCCESS", 200, 1, new byte[0], false, null));
+        assertEquals("HTTP_ERROR", jdbc.sql("SELECT outcome FROM public.delivery_attempts WHERE attempt_no=1").query(String.class).single());
+    }
+
+    @Test void retryAfterSurvivesBrokenResponseBody() throws Exception {
+        handler.set(exchange -> {
+            exchange.getResponseHeaders().set("Retry-After", "120");
+            exchange.sendResponseHeaders(429, 100);
+            exchange.getResponseBody().write(1);
+            exchange.getResponseBody().flush();
+        });
+        mvc.perform(post(send(delivery(target())))).andExpect(status().isOk())
+                .andExpect(jsonPath("$.outcome").value("NETWORK_ERROR"))
+                .andExpect(jsonPath("$.httpStatus").value(429))
+                .andExpect(jsonPath("$.status").value("RETRY_WAIT"));
+        double seconds = jdbc.sql("SELECT extract(epoch FROM (d.next_attempt_at-a.finished_at))::double precision FROM public.deliveries d JOIN public.delivery_attempts a ON a.delivery_id=d.id")
+                .query(Double.class).single();
+        assertTrue(seconds >= 120 && seconds < 122);
+    }
+    @Test void rejectsResultAfterLeaseExpiresWithoutChangingAttempt() {
+        long id = delivery(target());
+        var claim = transactions.claim(1, id);
+        // 테스트 DB에서 처리 기한 경과를 재현한다.
+        jdbc.sql("UPDATE public.deliveries SET lease_expires_at=clock_timestamp()-interval '1 second' WHERE id=:id")
+                .param("id", id).update();
+        var error = assertThrows(org.springframework.web.server.ResponseStatusException.class,
+                () -> transactions.finish(claim, new LocalWebhookSender.SendResult("SUCCESS", 200, 1, new byte[0], false, null)));
+        assertEquals(409, error.getStatusCode().value());
+        assertEquals("UNKNOWN", jdbc.sql("SELECT outcome FROM public.delivery_attempts WHERE delivery_id=:id").param("id", id).query(String.class).single());
+        assertEquals("PROCESSING", jdbc.sql("SELECT status FROM public.deliveries WHERE id=:id").param("id", id).query(String.class).single());
+    }
+
+    private void expire(long id) {
+        jdbc.sql("UPDATE public.deliveries SET lease_expires_at=clock_timestamp()-interval '1 second' WHERE id=:id").param("id", id).update();
+    }
+
+    @Test void claimGrantsThirtySecondLeaseAndUnexpiredWorkIsNotRecovered() {
+        long id = delivery(target());
+        var claim = transactions.claim(1, id);
+        assertNotNull(claim.leaseToken());
+        assertTrue(jdbc.sql("SELECT lease_token=:token AND lease_expires_at > clock_timestamp()+interval '28 seconds' AND lease_expires_at <= clock_timestamp()+interval '30 seconds' FROM public.deliveries WHERE id=:id")
+                .param("token", claim.leaseToken()).param("id", id).query(Boolean.class).single());
+        assertEquals(0, transactions.recoverExpired(java.util.List.of(target())));
+        assertEquals("PROCESSING", jdbc.sql("SELECT status FROM public.deliveries WHERE id=:id").param("id", id).query(String.class).single());
+    }
+
+    @Test void expiredPausedWorkIsReservedAndOldOwnerCannotOverwriteNewAttempt() {
+        long id = delivery(target());
+        var first = transactions.claim(1, id);
+        jdbc.sql("UPDATE public.endpoints SET active=false").update();
+        expire(id);
+        assertEquals(1, transactions.recoverExpired(java.util.List.of(target())));
+        assertEquals(0, transactions.recoverExpired(java.util.List.of(target())));
+        assertTrue(jdbc.sql("SELECT status='RETRY_WAIT' AND attempt_count=1 AND lease_token IS NULL AND lease_expires_at IS NULL AND next_attempt_at > clock_timestamp() FROM public.deliveries WHERE id=:id")
+                .param("id", id).query(Boolean.class).single());
+        assertTrue(jdbc.sql("SELECT outcome='UNKNOWN' AND recovery_reason='LEASE_EXPIRED' AND finished_at IS NOT NULL FROM public.delivery_attempts WHERE id=:id")
+                .param("id", first.attemptId()).query(Boolean.class).single());
+        assertThrows(org.springframework.web.server.ResponseStatusException.class, () -> transactions.claim(1, id));
+        jdbc.sql("UPDATE public.endpoints SET active=true").update();
+        jdbc.sql("UPDATE public.deliveries SET next_attempt_at=clock_timestamp()-interval '1 second' WHERE id=:id").param("id", id).update();
+        var second = transactions.claim(1, id);
+        assertNotEquals(first.leaseToken(), second.leaseToken());
+        var stale = assertThrows(org.springframework.web.server.ResponseStatusException.class,
+                () -> transactions.finish(first, new LocalWebhookSender.SendResult("SUCCESS", 200, 1, new byte[0], false, null)));
+        assertEquals(409, stale.getStatusCode().value());
+        transactions.finish(second, new LocalWebhookSender.SendResult("SUCCESS", 200, 1, new byte[0], false, null));
+        assertTrue(jdbc.sql("SELECT status='SUCCEEDED' AND attempt_count=2 AND lease_token IS NULL AND lease_expires_at IS NULL FROM public.deliveries WHERE id=:id")
+                .param("id", id).query(Boolean.class).single());
+        assertEquals(java.util.List.of("UNKNOWN", "SUCCESS"), jdbc.sql("SELECT outcome FROM public.delivery_attempts WHERE delivery_id=:id ORDER BY attempt_no").param("id", id).query(String.class).list());
+    }
+
+    @Test void expiredFifthAttemptEndsDeadWithoutResettingBudget() {
+        long id = delivery(target());
+        jdbc.sql("INSERT INTO public.delivery_attempts (delivery_id,attempt_no,outcome,http_status,finished_at) SELECT :id,g,'HTTP_ERROR',500,clock_timestamp() FROM generate_series(1,4) g").param("id", id).update();
+        jdbc.sql("UPDATE public.deliveries SET attempt_count=4 WHERE id=:id").param("id", id).update();
+        var claim = transactions.claim(1, id);
+        assertEquals(5, claim.attemptCount());
+        expire(id);
+        assertEquals(1, transactions.recoverExpired(java.util.List.of(target())));
+        assertTrue(jdbc.sql("SELECT status='DEAD' AND attempt_count=5 AND next_attempt_at IS NULL AND lease_token IS NULL AND lease_expires_at IS NULL FROM public.deliveries WHERE id=:id")
+                .param("id", id).query(Boolean.class).single());
+        assertThrows(org.springframework.web.server.ResponseStatusException.class, () -> transactions.claim(1, id));
+        assertEquals(5L, jdbc.sql("SELECT count(*) FROM public.delivery_attempts WHERE delivery_id=:id").param("id", id).query(Long.class).single());
+    }
+
+    @Test void onlyOneConcurrentRecoveryClosesExpiredAttempt() throws Exception {
+        long id = delivery(target());
+        transactions.claim(1, id);
+        expire(id);
+        try (var executor = Executors.newFixedThreadPool(2)) {
+            var calls = executor.invokeAll(java.util.List.of(
+                    () -> transactions.recoverExpired(java.util.List.of(target())),
+                    () -> transactions.recoverExpired(java.util.List.of(target()))));
+            assertEquals(1, (int) calls.get(0).get() + (int) calls.get(1).get());
+        }
+        assertEquals(1L, jdbc.sql("SELECT count(*) FROM public.delivery_attempts WHERE delivery_id=:id AND recovery_reason='LEASE_EXPIRED'").param("id", id).query(Long.class).single());
+    }
+
+    @Test void wrongTokenCannotFinishCurrentUnexpiredAttempt() {
+        long id = delivery(target());
+        var claim = transactions.claim(1, id);
+        var wrong = new DeliveryTransactions.Claim(claim.id(), claim.attemptId(), claim.targetUrl(), claim.payload(), claim.attemptCount(), java.util.UUID.randomUUID());
+        var error = assertThrows(org.springframework.web.server.ResponseStatusException.class,
+                () -> transactions.finish(wrong, new LocalWebhookSender.SendResult("SUCCESS", 200, 1, new byte[0], false, null)));
+        assertEquals(409, error.getStatusCode().value());
+        assertTrue(jdbc.sql("SELECT finished_at IS NULL AND outcome='UNKNOWN' FROM public.delivery_attempts WHERE id=:id").param("id", claim.attemptId()).query(Boolean.class).single());
+    }
+
+    @Test void recoveryRollsBackAttemptClosureIfReservationCannotBeSaved() {
+        long id = delivery(target());
+        transactions.claim(1, id);
+        expire(id);
+        jdbc.sql("ALTER TABLE public.deliveries ADD CONSTRAINT test_recovery_failure CHECK (status <> 'RETRY_WAIT') NOT VALID").update();
+        try {
+            assertThrows(org.springframework.dao.DataAccessException.class, () -> transactions.recoverExpired(java.util.List.of(target())));
+            assertTrue(jdbc.sql("SELECT status='PROCESSING' AND attempt_count=1 AND lease_token IS NOT NULL FROM public.deliveries WHERE id=:id").param("id", id).query(Boolean.class).single());
+            assertTrue(jdbc.sql("SELECT finished_at IS NULL AND recovery_reason IS NULL AND outcome='UNKNOWN' FROM public.delivery_attempts WHERE delivery_id=:id").param("id", id).query(Boolean.class).single());
+        } finally { jdbc.sql("ALTER TABLE public.deliveries DROP CONSTRAINT test_recovery_failure").update(); }
+    }
+
 }

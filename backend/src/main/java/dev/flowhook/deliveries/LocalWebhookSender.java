@@ -15,6 +15,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Flow;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicReference;
 import jakarta.annotation.PreDestroy;
 import org.springframework.stereotype.Component;
 
@@ -28,36 +29,44 @@ public class LocalWebhookSender {
 
     SendResult send(long deliveryId, String url, String payload) {
         long started = System.nanoTime();
-        if (!policy.allows(url)) return result("URL_BLOCKED", null, new Body(new byte[0], false), started);
+        if (!policy.allows(url)) return result("URL_BLOCKED", null, new Body(new byte[0], false), started, null);
         var request = HttpRequest.newBuilder(URI.create(url)).timeout(Duration.ofSeconds(5))
                 .header("Content-Type", "application/json")
                 .header("X-FlowHook-Delivery-Id", String.valueOf(deliveryId))
                 .POST(HttpRequest.BodyPublishers.ofString(payload)).build();
-        var pending = client.sendAsync(request, ignored -> new LimitedBody());
+        var responseInfo = new AtomicReference<HttpResponse.ResponseInfo>();
+        var pending = client.sendAsync(request, info -> {
+            responseInfo.set(info);
+            return new LimitedBody();
+        });
         try {
             var response = pending.get(10, TimeUnit.SECONDS);
             return result(response.statusCode() >= 200 && response.statusCode() < 300 ? "SUCCESS" : "HTTP_ERROR",
-                    response.statusCode(), response.body(), started);
+                    response.statusCode(), response.body(), started, response.headers().firstValue("Retry-After").orElse(null));
         } catch (TimeoutException exception) {
             pending.cancel(true);
-            return result("TIMEOUT", null, new Body(new byte[0], false), started);
+            return failure("TIMEOUT", responseInfo.get(), started);
         } catch (ExecutionException exception) {
-            return result(exception.getCause() instanceof HttpTimeoutException ? "TIMEOUT" : "NETWORK_ERROR",
-                    null, new Body(new byte[0], false), started);
+            return failure(exception.getCause() instanceof HttpTimeoutException ? "TIMEOUT" : "NETWORK_ERROR", responseInfo.get(), started);
         } catch (InterruptedException exception) {
             pending.cancel(true);
             Thread.currentThread().interrupt();
-            return result("UNKNOWN", null, new Body(new byte[0], false), started);
+            return failure("UNKNOWN", responseInfo.get(), started);
         }
     }
 
-    private SendResult result(String outcome, Integer code, Body body, long started) {
-        return new SendResult(outcome, code, Duration.ofNanos(System.nanoTime() - started).toMillis(), body.bytes(), body.truncated());
+    private SendResult failure(String outcome, HttpResponse.ResponseInfo info, long started) {
+        return result(outcome, info == null ? null : info.statusCode(), new Body(new byte[0], false), started,
+                info == null ? null : info.headers().firstValue("Retry-After").orElse(null));
+    }
+
+    private SendResult result(String outcome, Integer code, Body body, long started, String retryAfter) {
+        return new SendResult(outcome, code, Duration.ofNanos(System.nanoTime() - started).toMillis(), body.bytes(), body.truncated(), retryAfter);
     }
 
     @PreDestroy void close() { client.shutdownNow(); }
 
-    record SendResult(String outcome, Integer httpStatus, long durationMs, byte[] body, boolean truncated) { }
+    record SendResult(String outcome, Integer httpStatus, long durationMs, byte[] body, boolean truncated, String retryAfter) { }
     record Body(byte[] bytes, boolean truncated) { }
 
     private static final class LimitedBody implements HttpResponse.BodySubscriber<Body> {
