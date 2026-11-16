@@ -90,6 +90,6 @@ JPA 전환 패키징 앱의 기존 DB 스키마 검증과 health/endpoints/deliv
 프로젝트 1만 지원하고 인증·서명·일반 외부 송신은 없다. 동일 URL 등록은 허용한다.
 재시도 가능 실패는 RETRY_WAIT로 예약하고 최초 포함 5회 실패하면 DEAD로 종료한다. local worker가 자동 실행하며 만료된 PROCESSING은 회수한다. 기존 DEAD/SUCCEEDED는 되살리지 않는다.
 V5 적용 전 구버전 FlowHook을 모두 중지한다. 중복 HTTP 가능성은 남으며 수신자의 멱등 처리는 후속이다.
-이번 변경은 로컬 테스트103개와 빌드·격리된 실제 중단 복구 검증을 완료했다. 2026-11-16 사용자 요청으로 오늘 변경을 커밋·푸시하며 원격 CI 결과는 [Git 반영 기록](progress/013-git-sync.md)에 갱신한다.
+이번 변경은 로컬 테스트103개와 빌드·격리된 실제 중단 복구 검증을 완료했다. 2026-11-16 사용자 요청으로 오늘 변경을 main에 커밋·푸시했다. 기능 커밋 `1dda9de`의 [GitHub CI](https://github.com/Dalzoo03/flowhook/actions/runs/43890510044)에서 백엔드 테스트·빌드와 수신기 검증 모두 성공했다. 상세는 [Git 반영 기록](progress/013-git-sync.md)에 있다.
 10개 제한은 API의 잠금 규칙에 의존하므로 수동 INSERT로 우회할 수 있다.
 비밀번호 파일 `.env`, 빌드 산출물, pi 실행 기록은 Git 추적에서 제외한다.
