@@ -66,6 +66,7 @@ class DeliveryWorkerTest {
     @AfterAll static void stop() { receiver.stop(0); }
 
     @DynamicPropertySource static void properties(DynamicPropertyRegistry registry) {
+        registry.add("flowhook.delivery.signing-key", () -> dev.flowhook.signing.SigningTestSupport.KEY);
         registry.add("spring.datasource.url", postgres::getJdbcUrl);
         registry.add("spring.datasource.username", postgres::getUsername);
         registry.add("spring.datasource.password", postgres::getPassword);

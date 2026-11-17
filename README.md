@@ -2,7 +2,7 @@
 
 이벤트를 외부 서버에 전달하고, 실패를 재시도·조회·복구하는 백엔드를 만드는 학습 프로젝트.
 
-**현재 단계: 이벤트 접수·로컬 자동 전송·자동 재시도.** 이벤트·전달 대기·시도 결과를 PostgreSQL에 저장한다. local worker가 예약 시각 이후 자동 재전송하며, 30초 lease 만료 후 불명 작업을 복구한다. 수신자 멱등 처리와 인증은 이후 단계다.
+**현재 단계: 이벤트 접수·로컬 자동 전송·자동 재시도.** 이벤트·전달 대기·시도 결과를 PostgreSQL에 저장한다. local worker가 예약 시각 이후 자동 재전송하며, 30초 lease 만료 후 불명 작업을 복구한다. 수신자는 중복 전달에도 DB 업무 장부를 한 번만 저장한다. 로컬 HMAC 서명도 검증한다. 사용자 인증·endpoint별 키 관리는 이후 단계다.
 
 ## 처음에는 이것부터
 
@@ -26,10 +26,12 @@ docker compose --profile db up -d postgres
 | `GET /api/health` | 코드 작성, HTTP 실행 확인 미실행 |
 | 전달 대상 등록·조회 | 프로젝트 1, PostgreSQL 저장, 입력 검증·10개 제한 |
 | 이벤트 접수 | POST /v1/events, 원자적 저장·대상 고정·중복 처리 |
-| 테스트 | 별도 PostgreSQL 컨테이너에서 103개 통과, API·실제 HTTP·DB·동시성 검증 |
+| 테스트 | 별도 PostgreSQL 컨테이너에서 147개 통과, API·실제 HTTP·DB·동시성 검증 |
 | Swagger UI | 앱 실행 후 http://localhost:8080/swagger-ui/index.html |
 | 데모 수신 서버 | Java 21 독립 실행, 9090에서 200·500·지연 응답 |
 | 저장 계층 | Spring Data JPA, 선점·JSONB 비교 등은 native SQL |
+| 로컬 서명 | HMAC-SHA256, 본문·전달ID·시각 보호,5분 범위 검증 |
+| 수신자 멱등 처리 | 별도 demo_receiver 스키마, 동시 중복·응답 유실·재시작에도 업무 장부 한 건 |
 | DB 구조 관리 | Flyway V1·V2·V3·V4·V5, 기존 데이터 보존 |
 | 실제 송신 | local 프로필에서 자동 전송·자동 재시도, 수동 API도 유지 |
 | Docker / PostgreSQL | 로컬 PostgreSQL 사용, 앱+DB Compose 설정 작성 |
@@ -50,3 +52,5 @@ docker compose --profile db up -d postgres
 - [기획서·PRD·로드맵](docs/README.md)
 
 CI는 Testcontainers의 별도 PostgreSQL에서 테스트하고 컴파일·패키징한다. 테스트 실패 시 CI도 실패한다. 배포 자동화(CD)는 아직 구성하지 않았다.
+
+로컬 서명 적용 시 송신/수신을 모두 재시작한다. 첫 실행의 비공개 키는 .local에 저장되고 Git에서 제외된다. [서명 안내](docs/WEBHOOK_SIGNATURE.md).

@@ -13,3 +13,6 @@
 *.log
 .vscode/
 /flowhook-codex-handoff.zip
+
+# Runtime-generated local webhook signing key
+.local/

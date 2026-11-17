@@ -18,22 +18,37 @@ import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicReference;
 import jakarta.annotation.PreDestroy;
 import org.springframework.stereotype.Component;
+import org.springframework.beans.factory.annotation.Value;
+import dev.flowhook.signing.LocalWebhookKey;
+import dev.flowhook.signing.WebhookSignature;
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.time.Clock;
 
 @Component
 public class LocalWebhookSender {
     private final LocalReceiverPolicy policy;
+    private final WebhookSignature signature;
     private final HttpClient client = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(2))
             .followRedirects(HttpClient.Redirect.NEVER).proxy(HttpClient.Builder.NO_PROXY).build();
 
-    public LocalWebhookSender(LocalReceiverPolicy policy) { this.policy = policy; }
+    public LocalWebhookSender(LocalReceiverPolicy policy,
+                              @Value("${flowhook.delivery.signing-key:${FLOWHOOK_SIGNING_KEY:}}") String key) throws IOException {
+        this.policy = policy;
+        this.signature = policy.enabled() ? new WebhookSignature(LocalWebhookKey.load(key), Clock.systemUTC()) : null;
+    }
 
     SendResult send(long deliveryId, String url, String payload) {
         long started = System.nanoTime();
         if (!policy.allows(url)) return result("URL_BLOCKED", null, new Body(new byte[0], false), started, null);
+        byte[] body = payload.getBytes(StandardCharsets.UTF_8);
+        var signed = signature.sign(String.valueOf(deliveryId), body);
         var request = HttpRequest.newBuilder(URI.create(url)).timeout(Duration.ofSeconds(5))
                 .header("Content-Type", "application/json")
                 .header("X-FlowHook-Delivery-Id", String.valueOf(deliveryId))
-                .POST(HttpRequest.BodyPublishers.ofString(payload)).build();
+                .header("X-FlowHook-Timestamp", signed.timestamp())
+                .header("X-FlowHook-Signature", signed.signature())
+                .POST(HttpRequest.BodyPublishers.ofByteArray(body)).build();
         var responseInfo = new AtomicReference<HttpResponse.ResponseInfo>();
         var pending = client.sendAsync(request, info -> {
             responseInfo.set(info);

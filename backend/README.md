@@ -60,7 +60,7 @@ Spring이 원래 `.env`를 자동으로 읽는 것은 아니다. 이번 설정�
 - 이름은 앞뒤 공백 제거 후 1~80자, 이벤트 유형은 필수이며 입력한 대소문자를 유지한다.
 - 기본 URL은 HTTPS이며 사용자 정보·fragment·잘못된 포트를 거절한다. local 프로필에서만 숫자 루프백 수신 주소를 예외 허용한다.
 - 중복 URL도 별도 대상으로 등록한다. 10개를 초과하면 409로 거절한다.
-- 인증, 외부 목적지 소유 확인·허용 목록, 서명키 생성은 아직 없다. 실제 전송은 local 프로필의 데모 수신기로만 가능하다.
+- 사용자 인증, 외부 목적지 소유 확인·허용 목록, endpoint별 서명키 발급은 아직 없다. 로컬 공유키 서명은 지원한다. 실제 전송은 local 프로필의 데모 수신기로만 가능하다.
 - PostgreSQL에 저장하므로 앱 재시작 후에도 데이터가 남는다. Docker의 DB 볼륨 삭제는 데이터를 지운다.
 - 등록은 트랜잭션 안에서 프로젝트별 advisory lock → 개수 확인 → INSERT 순서다. SQL을 직접 실행하는 외부 쓰기에는 이 제한이 강제되지 않는다.
 
@@ -79,7 +79,7 @@ Testcontainers가 별도 PostgreSQL 17 컨테이너를 띄운다. 로컬 flowhoo
 각 테스트의 초기화는 테스트 컨테이너에만 적용한다. 테스트를 위해 로컬 DB를 비우지 않는다.
 Spring과 MockMvc로 기존 API 동작, DB 데이터 조회·저장, 동시 등록 20건에서 성공 10건·거절 10건을 검증한다.
 테스트 DB의 테이블도 수동 init script 대신 앱의 Flyway가 생성한다.
-Flyway 테스트는 빈 DB의 V1→V5 적용·재실행, 기존 DB의 baseline→V5 및 V3→V5·V4→V5 데이터 보존을 검증한다. 실제 전송 테스트를 포함해 전체 103개다.
+Flyway 테스트는 빈 DB의 V1→V5 적용·재실행, 기존 DB의 baseline→V5 및 V3→V5·V4→V5 데이터 보존을 검증한다. 실제 전송 테스트를 포함해 전체 147개다.
 
 ## 이벤트 접수 — 로컬 실습 단계
 
@@ -163,3 +163,18 @@ local 재시작 시 기존 데모 목적지의 실행 가능한 작업도 처리
 목록에 leaseExpiresAt/recoveryReason을 제공한다. V5 적용 전 구버전 앱을 모두 중지하며, 상태/이력/횟수는 유지한다.
 테스트103개 외에도 임시 DB와 패키징 앱에서 실제 SIGKILL→재시작→30초 만료→두 번째 시도 성공을 확인했다.
 중복 HTTP는 여전히 가능하다. heartbeat/수신자 멱등 처리/구버전 혼합 운영은 지원하지 않는다. [복구 기록](../docs/progress/012-lease-recovery.md).
+
+## 수신자 중복 업무 방지
+
+demo/receiver는 receiver source set으로 컴파일한다. `./scripts/receiver.sh`는 Gradle receiver JavaExec 작업으로 실행하며 JDBC/Flyway/리소스를 포함한다.
+수신기 DB는 별도 demo_receiver 스키마/수신측 Flyway V1을 사용하며 FlowHook public V5에는 변경이 없다.
+`test`의 수신자19개·서명20개·키4개·실제 worker 통합1개 등을 포함한 전체147개와 `receiverCheck` 자체 검증을 함께 실행하려면 `./scripts/backend.sh test receiverCheck assemble`을 사용한다.
+기존 지연 모드는 신규 업무 커밋 후 응답을 지연하며, 중복 요청은 바로 성공한다. TIMEOUT→자동 재시도 SUCCESS와 수신2/업무1이 확인된다.
+[수신기 실행/DB 안내](../demo/receiver/README.md), [학습 기록](../docs/progress/014-receiver-idempotency.md).
+
+## 로컬 웹훅 서명
+
+LocalWebhookSender가 실제 UTF-8 body/전달ID/전송 Unix초에 HMAC-SHA256을 계산한다. Receiver는 업무/로그 전에 유효한 서명과 ±300초를 확인한다.
+기본 키는 첫 실행에 생성하는 프로젝트 .local/webhook-signing.key이며 Git에서 제외한다. 로컬 기능이 꺼진 앱은 생성하지 않는다. 명시한 FLOWHOOK_SIGNING_KEY 또는 FLOWHOOK_SIGNING_KEY_FILE도 지원한다.
+송신/수신 모두 새 버전으로 재시작한다. 테스트는 합성 키/임시 파일만 사용하며 전체147개와 receiverCheck 검증을 통과했다. DB 마이그레이션 변경은 없다.
+[프로토콜/설정](../docs/WEBHOOK_SIGNATURE.md), [검증·학습 기록](../docs/progress/015-webhook-signature.md).

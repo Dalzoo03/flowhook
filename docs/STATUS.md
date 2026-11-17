@@ -1,6 +1,6 @@
 # FlowHook 진행 현황
 
-최종 갱신: 2026-11-16. 현재 구현 상태는 이 문서에, 작업별 근거와 다룬 개념은 docs/progress/에 기록한다.
+최종 갱신: 2026-11-17. 현재 구현 상태는 이 문서에, 작업별 근거와 다룬 개념은 docs/progress/에 기록한다.
 
 ## 완료한 작업
 
@@ -9,7 +9,7 @@
 - [x] 입력 검증, 프로젝트 1 제한, 전달 대상 10개 제한
 - [x] PostgreSQL JPA 저장·조회 (이전 JDBC에서 전환)
 - [x] 등록 트랜잭션과 프로젝트별 DB 잠금
-- [x] 별도 PostgreSQL 컨테이너 기반 테스트 103개
+- [x] 별도 PostgreSQL 컨테이너 기반 테스트 147개
 - [x] 로컬 JAR에서 실제 DB 데이터 조회 확인
 - [x] Docker·Compose 설정 파일, GitHub PostgreSQL 테스트·빌드 CI 파일
 - [x] GitHub에서 PostgreSQL 테스트·빌드 CI 실행 성공 확인
@@ -32,13 +32,17 @@
 - [x] 이벤트 요청을 @Valid @RequestBody DTO로 정리, 기존 입력 검사 유지
 - [x] local 전용 자동 worker: PENDING/due RETRY_WAIT 자동 전송·대상 제외·최대5회 종료
 - [x] Flyway V5: 30초 lease·UUID 소유권·만료 UNKNOWN 회수·예산에 따른 재예약/DEAD
+- [x] 수신기 DB 멱등 처리: 같은 전달의 동시/재시작 중복에도 업무 장부 한 건
+- [x] 커밋 후 응답 지연→FlowHook TIMEOUT→자동 재시도 SUCCESS, 수신2/업무1 검증
+- [x] 로컬 HMAC-SHA256 서명: 본문/ID/시각 검증·5분 범위·미인가 요청 DB/로그 차단
+- [x] 비공개 로컬 공유키 자동 생성·동시 첫 실행/수신기 재시작 검증
 
 ## 남은 작업
 
 - [ ] 앱 Docker 이미지 빌드·실행 확인
 - [ ] 프로젝트 생성·사용자 인증·인가
 - [ ] API 키 인증을 포함한 전체 이벤트 접수 명세 완성
-- [ ] 수신자 멱등 처리·서명·외부 송신 확대
+- [ ] endpoint별 키 발급·암호화 저장·키 교체·외부 송신 확대·외부 업무 효과의 중복 방지
 
 현재는 이벤트와 대상별 PENDING 전달을 한 트랜잭션에 저장한다. 동일 입력 재접수는 200, 충돌은 409다.
 실습 시 대상 수 0으로 최초 접수한 이벤트는 대상 등록 후 재접수해도 추가 전달을 만들지 않는다. 새 eventId로 새 이벤트를 접수해야 한다.
@@ -48,7 +52,9 @@ local 프로필에서 worker가 PENDING 또는 예약 시각이 지난 RETRY_WAI
 
 ## 검증 근거
 
-lease 복구 추가 후 `./scripts/backend.sh test assemble` 성공. 테스트 103개, 실패·오류·스킵 0개.
+로컬 서명 검증 추가 후 `./scripts/backend.sh test receiverCheck assemble` 성공. JUnit147개, 실패·오류·스킵0개와 기존 수신기 자체 검증 통과.
+독립 HMAC 벡터·5분 경계·헤더/본문 변조·다른 키·미인가 요청 로그/DB 차단·두 JVM 동시 최초 키 생성을 확인했다. 임시 환경의 실제 수신기/패키징 FlowHook이 생성 키를 공유해 전송 성공했고 수신기 재시작 후 검증도 유지됐다.
+실제 FlowHook 자동 worker→DB 수신기 지연 응답에서 TIMEOUT 후 재시도 SUCCESS, 수신2/업무1을 확인했다. 실행 스크립트의 별도 JVM 재시작 후에도 중복 판정이 유지됐다. 사용자 DB의 demo_receiver 스키마는 다음 수신기 실행 때 생성된다.
 격리된 실제 JVM을 HTTP 도중 SIGKILL(-9) 후 재시작해 30초 만료 회수→UNKNOWN/LEASE_EXPIRED→동일 전달의 시도2 SUCCESS를 확인했다. 사용자 DB의 V5 적용은 다음 앱 재시작 때 수행한다.
 이전 단계에서 local 프로필 JAR의 목록·Swagger를 확인했다. 당시 로컬 Flyway V4 성공 및 기존 DEAD 3건·SUCCEEDED 1건·PENDING 1건을 확인했다. V3→V4 데이터 보존은 별도 PostgreSQL 마이그레이션 테스트에서도 검증했다. 사용자 데이터의 전달을 임의로 실행하지 않았다.
 패키징한 앱에서 기존 DB의 ID 1을 GET API로 조회했다. 상세 근거는 [DB 연결 기록](progress/003-postgresql.md)에 있다.
@@ -75,6 +81,9 @@ JPA 전환 패키징 앱의 기존 DB 스키마 검증과 health/endpoints/deliv
 - [011 로컬 자동 worker](progress/011-local-worker.md)
 - [012 처리 기한·중단 복구](progress/012-lease-recovery.md)
 - [013 오늘 작업 Git 반영](progress/013-git-sync.md)
+- [014 수신자 멱등 처리](progress/014-receiver-idempotency.md)
+- [015 로컬 웹훅 서명](progress/015-webhook-signature.md)
+- [016 수신·서명 Git 반영](progress/016-signature-git-sync.md)
 
 ## 변경 이력 확인
 
@@ -87,9 +96,12 @@ JPA 전환 패키징 앱의 기존 DB 스키마 검증과 health/endpoints/deliv
 
 ## 제한
 
-프로젝트 1만 지원하고 인증·서명·일반 외부 송신은 없다. 동일 URL 등록은 허용한다.
+프로젝트1/로컬 공유키 서명만 지원한다. 사용자 로그인/API키 인증·일반 외부 송신은 없다. 동일 URL 등록은 허용한다.
 재시도 가능 실패는 RETRY_WAIT로 예약하고 최초 포함 5회 실패하면 DEAD로 종료한다. local worker가 자동 실행하며 만료된 PROCESSING은 회수한다. 기존 DEAD/SUCCEEDED는 되살리지 않는다.
-V5 적용 전 구버전 FlowHook을 모두 중지한다. 중복 HTTP 가능성은 남으며 수신자의 멱등 처리는 후속이다.
-이번 변경은 로컬 테스트103개와 빌드·격리된 실제 중단 복구 검증을 완료했다. 2026-11-16 사용자 요청으로 오늘 변경을 main에 커밋·푸시했다. 기능 커밋 `1dda9de`의 [GitHub CI](https://github.com/Dalzoo03/flowhook/actions/runs/43890510044)에서 백엔드 테스트·빌드와 수신기 검증 모두 성공했다. 상세는 [Git 반영 기록](progress/013-git-sync.md)에 있다.
+V5 적용 전 구버전 FlowHook을 모두 중지한다. 중복 HTTP 가능성은 남지만 데모 수신기의 DB 업무 장부는 전달 ID별 한 번만 저장한다. 외부 API 업무 효과는 별도 설계가 필요하다.
+이전 lease 단계는 로컬 테스트103개와 빌드·격리된 실제 중단 복구 검증을 완료했다. 2026-11-16 사용자 요청으로 오늘 변경을 main에 커밋·푸시했다. 기능 커밋 `1dda9de`의 [GitHub CI](https://github.com/Dalzoo03/flowhook/actions/runs/43890510044)에서 백엔드 테스트·빌드와 수신기 검증 모두 성공했다. 상세는 [Git 반영 기록](progress/013-git-sync.md)에 있다.
+2026-11-17 사용자 요청으로 수신기 멱등 처리/실행 스크립트/CI 구성/로컬 서명 변경을 GitHub에 반영한다. 로컬147개 테스트·수신기 자체 검사·빌드와 실제 실행 검증을 완료했으며 원격 결과는 [서명 Git 반영 기록](progress/016-signature-git-sync.md)에 기록한다.
 10개 제한은 API의 잠금 규칙에 의존하므로 수동 INSERT로 우회할 수 있다.
 비밀번호 파일 `.env`, 빌드 산출물, pi 실행 기록은 Git 추적에서 제외한다.
+
+서명 적용 때 기존 FlowHook과 수신기를 모두 중지하고 새 버전으로 시작한다. 첫 실행의 .local 공유키 파일은 Git에서 제외하며 내용은 출력하지 않는다.

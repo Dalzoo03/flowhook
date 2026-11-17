@@ -73,7 +73,7 @@ POST `/v1/events`:
 - 최초 포함 5회 실패하면 DEAD, nextAttemptAt=null이며 더 전송하지 않는다.
 
 backoff는 5/10/20/40초 ±20%다. 대기만 대략 60~90초이며 HTTP 시간·배치 처리·poll 지연이 추가된다.
-데모 failure는 계속 500을 반환한다. delay는 8초 지연해 TIMEOUT으로 실습한다.
+데모 failure는 계속500을 반환한다. DB 기반 수신기의 delay는 신규 업무 커밋 후8초 지연해 첫 요청을 TIMEOUT으로 만들고, 중복 재시도는 지연 없이200으로 성공시킨다.
 408/429/5xx/네트워크/타임아웃은 남은 횟수 안에서 예약한다. 다른 3xx/4xx, URL_BLOCKED, 중단 UNKNOWN은 종료한다.
 429의 Retry-After는 초 또는 HTTP 날짜를 최대10분 반영하고 backoff보다 이른 예약을 만들지 않는다.
 
@@ -116,6 +116,44 @@ V5 업그레이드 전 기존 FlowHook을 모두 중지하고 새 버전만 loca
 실제 중단 실습은 합성 데이터로만 진행한다. 느린 수신기(mode=delay)와 demo.delay 대상이 있는 상태에서 새 eventId의 이벤트를 접수한다.
 수신기 로그에 POST가 도착하고 목록이 PROCESSING인 동안 **해당 FlowHook JVM만** 강제 종료한다. 보통의 정상 종료는 요청이 완료될 수 있어 crash와 다르다.
 다시 local로 시작하고 GET deliveries만 조회한다. 기존 lease가 만료될 때까지 기다린 뒤 RETRY_WAIT/UNKNOWN/recoveryReason=LEASE_EXPIRED, 다음 예약 이후 attemptCount 증가를 확인한다.
-현재 delay 모드는 매번8초 걸리므로 재전송도 TIMEOUT이 될 수 있다. 성공으로 복구되는 과정은 별도의 격리된 실제 JVM 강제 종료/재시작 검증으로 확인한다.
+DB 기반 delay 수신기는 첫 업무를 이미 커밋했으므로 중복 재전송을 지연 없이200으로 받는다. 복구 후에도 업무 장부는 같은 전달당 한 건만 남는다.
 이전 UNKNOWN 이력은 다음 성공/실패 시도 뒤에도 DB에 남는다. 중지 endpoint는 회수만 하고 활성화될 때까지 전송을 보류한다.
 lease30초 + 재시도 backoff + polling/배치 시간이 필요하며 정확히30초 뒤 전송한다는 뜻은 아니다. 서버가 꺼져 있는 동안에는 회수할 worker도 없다.
+
+## 8. HTTP 두 번·업무 한 번 확인
+
+수신기를 새 코드로 재시작한다(`./scripts/receiver.sh`). PostgreSQL도 실행 중이어야 한다. FlowHook의 기존 local worker는 그대로 사용한다.
+GET endpoints에서 기존 `demo.delay` 대상의 URL이 `http://127.0.0.1:9090/webhooks?mode=delay`인지 확인한다. 이미 있으면 다시 등록하지 않는다.
+없을 때만 이 URL과 eventType=demo.delay로 수신처 하나를 등록한다.
+
+POST `/v1/events`:
+
+```json
+{"eventId":"receiver-once-001","type":"demo.delay","data":{"orderId":7001}}
+```
+
+GET deliveries를 조회한다. 첫 시도는 TIMEOUT/RETRY_WAIT가 되고, 예약 이후 두 번째 시도는 SUCCESS/SUCCEEDED가 된다.
+소량의 정상 환경에서 대략10~15초가 걸리며 배치/부하에 따라 더 기다릴 수 있다. send API를 직접 누를 필요는 없다.
+
+DBeaver:
+
+```sql
+SELECT r.delivery_id,r.receipt_count,
+       (SELECT count(*) FROM demo_receiver.business_effects b
+        WHERE b.delivery_id=r.delivery_id) AS business_count
+FROM demo_receiver.receipts r
+WHERE r.payload->>'eventId'='receiver-once-001';
+```
+
+각 전달의 receipt_count=2/business_count=1을 확인한다. 같은 type의 수신처가 여러 개면 전달 ID마다 별도 행이 생기는 것이 정상이다.
+기존 성공한 eventId를 반복 접수하면 새 전달이 생기지 않으므로 새 실습마다 eventId를 바꾼다.
+업무 효과는 합성 업무 장부 한 건 저장이다. 실제 주문/결제 API를 호출하는 데까지 한 번 처리를 보장하는 것은 아니다.
+
+## 9. 서명 검증
+
+FlowHook과 수신기를 모두 새 코드로 재시작한다. 첫 실행에서 프로젝트 .local의 공유키를 만들고 두 프로세스가 함께 사용한다.
+Swagger의 이벤트 접수 방식은 그대로이며 송신기가 매 시도 직전에 시각/서명 헤더를 붙인다.
+본문·전달 ID·시각이 바뀌거나 요청이5분 범위를 벗어나면 수신기는401을 반환하고 수신/업무 기록을 남기지 않는다.
+직접 서명 없는 curl은 이제401이 정상이다. 인증 헤더 오류도401이며, 유효한 서명 뒤 JSON 오류는400으로 구분한다.
+서명 값/키를 복사하거나 로그에서 확인할 필요가 없다. 기존 delay 실습의 TIMEOUT→재시도 SUCCESS/수신2·업무1도 서명을 검증한 뒤 유지된다.
+규약·설정·검증 테스트는 [서명 안내](WEBHOOK_SIGNATURE.md)를 따른다.

@@ -19,6 +19,8 @@ public class LocalReceiverPolicy {
         this.port = port;
     }
 
+    boolean enabled() { return enabled; }
+
     public List<String> workerTargets() {
         if (!enabled) return List.of();
         String base = "http://127.0.0.1:" + port + "/webhooks";

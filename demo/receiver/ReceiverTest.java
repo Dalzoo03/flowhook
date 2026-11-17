@@ -7,14 +7,20 @@ import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.concurrent.Executors;
+import dev.flowhook.signing.WebhookSignature;
+import java.time.Clock;
 
 public class ReceiverTest {
+    private static final WebhookSignature SIGNER = new WebhookSignature(new byte[32], Clock.systemUTC());
     private static final HttpClient CLIENT = HttpClient.newHttpClient();
 
     public static void main(String[] args) throws Exception {
         var output = new ByteArrayOutputStream();
-        try (var receiver = Receiver.start(0, 150, new PrintStream(output, true, StandardCharsets.UTF_8))) {
+        try (var receiver = Receiver.start(0, 150, new PrintStream(output, true, StandardCharsets.UTF_8), SIGNER)) {
             String base = "http://127.0.0.1:" + receiver.port();
+            var missingId = CLIENT.send(HttpRequest.newBuilder(URI.create(base + "/webhooks"))
+                    .header("Content-Type", "application/json").POST(HttpRequest.BodyPublishers.ofString("{}")).build(), HttpResponse.BodyHandlers.ofString());
+            check(missingId.statusCode() == 401, "delivery ID required");
             check(send(base, "", "{}").statusCode() == 200, "success mode");
             check(send(base, "?mode=failure", "{}").statusCode() == 500, "failure mode");
             long start = System.nanoTime();
@@ -31,14 +37,17 @@ public class ReceiverTest {
             var wrongType = CLIENT.send(HttpRequest.newBuilder(URI.create(base + "/webhooks"))
                     .header("Content-Type", "text/plain").POST(HttpRequest.BodyPublishers.ofString("{}")).build(), HttpResponse.BodyHandlers.ofString());
             check(wrongType.statusCode() == 415, "content type restriction");
+            var signature = SIGNER.sign("delivery-123", "{\"orderId\":1001}".getBytes(StandardCharsets.UTF_8));
             var request = HttpRequest.newBuilder(URI.create(base + "/webhooks"))
                     .header("Content-Type", "application/json").header("Authorization", "secret-test-value")
                     .header("X-FlowHook-Delivery-Id", "delivery-123")
+                    .header("X-FlowHook-Timestamp", signature.timestamp()).header("X-FlowHook-Signature", signature.signature())
                     .POST(HttpRequest.BodyPublishers.ofString("{\"orderId\":1001}")).build();
             CLIENT.send(request, HttpResponse.BodyHandlers.ofString());
             String log = output.toString(StandardCharsets.UTF_8);
             check(log.contains("delivery-123") && log.contains("orderId"), "body and delivery header logged");
             check(!log.contains("secret-test-value"), "authorization header excluded");
+            check(!log.contains(signature.signature()), "signature header excluded");
             try (var executor = Executors.newFixedThreadPool(2)) {
                 var delayed = executor.submit(() -> send(base, "?mode=delay", "{}"));
                 check(send(base, "?mode=failure", "{}").statusCode() == 500, "parallel modes stay independent");
@@ -46,7 +55,7 @@ public class ReceiverTest {
             }
         }
         try {
-            Receiver.start(0, -1, System.out);
+            Receiver.start(0, -1, System.out, SIGNER);
             throw new AssertionError("negative delay accepted");
         } catch (IllegalArgumentException expected) {
             // 잘못된 설정은 서버를 열기 전에 거절한다.
@@ -55,8 +64,12 @@ public class ReceiverTest {
     }
 
     private static HttpResponse<String> send(String base, String query, String body) throws Exception {
+        String id = java.util.UUID.randomUUID().toString();
+        var signature = SIGNER.sign(id, body.getBytes(StandardCharsets.UTF_8));
         return CLIENT.send(HttpRequest.newBuilder(URI.create(base + "/webhooks" + query))
                 .timeout(Duration.ofSeconds(5)).header("Content-Type", "application/json")
+                .header("X-FlowHook-Delivery-Id", id)
+                .header("X-FlowHook-Timestamp", signature.timestamp()).header("X-FlowHook-Signature", signature.signature())
                 .POST(HttpRequest.BodyPublishers.ofString(body)).build(), HttpResponse.BodyHandlers.ofString());
     }
 

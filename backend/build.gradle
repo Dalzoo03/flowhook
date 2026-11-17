@@ -18,6 +18,19 @@ repositories {
 	mavenCentral()
 }
 
+sourceSets {
+    receiver {
+        java.srcDirs = ['../demo/receiver']
+        resources.srcDirs = ['../demo/receiver/resources']
+        compileClasspath += sourceSets.main.output
+        runtimeClasspath += sourceSets.main.output
+    }
+    test {
+        compileClasspath += sourceSets.receiver.output
+        runtimeClasspath += sourceSets.receiver.output
+    }
+}
+
 dependencies {
 	implementation 'org.springframework.boot:spring-boot-starter-webmvc'
 	implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
@@ -30,8 +43,30 @@ dependencies {
 	testImplementation 'org.testcontainers:testcontainers-postgresql'
 	testImplementation 'org.testcontainers:testcontainers-junit-jupiter'
 	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+	receiverImplementation 'org.flywaydb:flyway-core'
+	receiverRuntimeOnly 'org.flywaydb:flyway-database-postgresql'
+	receiverRuntimeOnly 'org.postgresql:postgresql'
 }
 
 tasks.named('test') {
 	useJUnitPlatform()
+}
+
+tasks.named('compileTestJava') {
+    dependsOn tasks.named('receiverClasses')
+}
+
+tasks.register('receiver', JavaExec) {
+    dependsOn tasks.named('receiverClasses')
+    classpath = sourceSets.receiver.runtimeClasspath
+    mainClass = 'Receiver'
+    workingDir = rootDir.parentFile
+    args providers.gradleProperty('receiverPort').getOrElse('9090'),
+         providers.gradleProperty('receiverDelayMillis').getOrElse('8000')
+}
+
+tasks.register('receiverCheck', JavaExec) {
+    dependsOn tasks.named('receiverClasses')
+    classpath = sourceSets.receiver.runtimeClasspath
+    mainClass = 'ReceiverTest'
 }
