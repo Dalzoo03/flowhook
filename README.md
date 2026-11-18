@@ -11,7 +11,6 @@
 3. 브라우저에서 `http://localhost:8080/api/health`를 연다. 코드상 기대 응답은 `{"status":"UP"}`이다.
 
 ```bash
-cd /Users/dalzoo/Desktop/flowhook
 docker compose --profile db up -d postgres
 ./scripts/backend.sh
 ```
